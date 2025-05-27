@@ -1,12 +1,16 @@
-import './App.css'
-
-import UnitPage from './components/UnitPage';
-import { sampleUnits } from './data/sampleUnits';
+import { useUnits } from './hooks/useUnits';
+import UnitPage from "./components/UnitPage.tsx";
 
 function App() {
+    const { units, loading } = useUnits();
+
+    if (loading) return <div>Loading...</div>;
+
     return (
         <div>
-            <UnitPage unit={sampleUnits[0]} />
+            {units.map(unit => (
+                <UnitPage key={unit.id} unit={unit} />
+            ))}
         </div>
     );
 }
