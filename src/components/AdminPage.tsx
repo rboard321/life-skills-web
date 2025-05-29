@@ -43,7 +43,7 @@ const AdminPage: React.FC = () => {
     };
 
     return (
-        <div style={{ padding: '2rem' }}>
+        <div className="container">
             <h2>Add New Unit</h2>
             <form onSubmit={handleSubmit}>
                 <div>
