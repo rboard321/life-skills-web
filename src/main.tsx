@@ -5,6 +5,7 @@ import App from './App';
 import Dashboard from './components/Dashboard';
 import IndividualUnitPage from './components/IndividualUnitPage';
 import AdminPage from './components/AdminPage';
+import IndividualUnitPage from './components/IndividualUnitPage';
 import Login from './components/auth/Login';
 import Signup from './components/auth/Signup';
 import ForgotPassword from './components/auth/ForgotPassword';
