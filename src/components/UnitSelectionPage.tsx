@@ -1,10 +1,10 @@
-import { useUnits } from './hooks/useUnits';
-import './index.css';
-import UnitPage from './components/UnitPage';
-import type {Unit} from './data/sampleUnits';
+import { useUnits } from '../hooks/useUnits';
+import '../index.css';
+import UnitPage from './UnitPage';
+import type { Unit } from '../data/sampleUnits';
 import { useState } from 'react';
 
-function App() {
+function UnitSelectionPage() {
     const { units, loading, error } = useUnits();
     const [selectedUnit, setSelectedUnit] = useState<Unit | null>(null);
 
@@ -79,4 +79,4 @@ function App() {
     );
 }
 
-export default App;
+export default UnitSelectionPage;

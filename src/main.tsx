@@ -1,7 +1,7 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import './index.css';
-import App from './App';
+import UnitSelectionPage from './components/UnitSelectionPage';
 import Dashboard from './components/Dashboard';
 import AdminPage from './components/AdminPage';
 import IndividualUnitPage from './components/IndividualUnitPage';
@@ -40,7 +40,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
               path="/units" 
               element={
                 <ProtectedRoute>
-                  <App />
+                  <UnitSelectionPage />
                 </ProtectedRoute>
               } 
             />
@@ -57,14 +57,6 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
               element={
                 <ProtectedRoute>
                   <AdminPage />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/dashboard"
-              element={
-                <ProtectedRoute>
-                  <Dashboard />
                 </ProtectedRoute>
               }
             />
