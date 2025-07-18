@@ -53,7 +53,31 @@ export default tseslint.config({
 })
 ```
 
+## Getting Started
+
+1. **Install Node.js** – Node 18 or later is recommended.
+2. **Install dependencies** – run `npm ci` at the project root.
+3. **Start the dev server** – run `npm run dev` and open the printed URL.
+
+### Firebase environment variables
+
+If the Firebase configuration in `src/firebase.ts` is moved outside the source,
+create an `.env` file containing:
+
+```
+VITE_FIREBASE_API_KEY=yourApiKey
+VITE_FIREBASE_AUTH_DOMAIN=yourAuthDomain
+VITE_FIREBASE_PROJECT_ID=yourProjectId
+VITE_FIREBASE_STORAGE_BUCKET=yourStorageBucket
+VITE_FIREBASE_MESSAGING_SENDER_ID=yourMessagingSenderId
+VITE_FIREBASE_APP_ID=yourAppId
+VITE_FIREBASE_MEASUREMENT_ID=yourMeasurementId
+```
+
+Read these variables in `src/firebase.ts` via `import.meta.env` when initializing Firebase.
+
 ## License
 
 This project is licensed under the [MIT License](LICENSE).
+
 
