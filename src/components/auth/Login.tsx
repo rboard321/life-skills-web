@@ -23,11 +23,15 @@ const Login: React.FC = () => {
       setLoading(true);
       await login(email, password);
       navigate('/');
-    } catch (error: any) {
-      const errorMessage =
-        error.code === 'auth/invalid-credential'
-          ? 'Invalid email or password'
-          : error.message || 'Failed to log in';
+    } catch (error: unknown) {
+      let errorMessage = 'Failed to log in';
+      if (error instanceof Error) {
+        const { code, message } = error as Error & { code?: string };
+        errorMessage =
+          code === 'auth/invalid-credential'
+            ? 'Invalid email or password'
+            : message || 'Failed to log in';
+      }
       setError(errorMessage);
     } finally {
       setLoading(false);
