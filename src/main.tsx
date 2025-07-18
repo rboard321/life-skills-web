@@ -36,13 +36,13 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
                 </ProtectedRoute>
               } 
             />
-            <Route 
-              path="/units" 
+            <Route
+              path="/units"
               element={
                 <ProtectedRoute>
                   <UnitSelectionPage />
                 </ProtectedRoute>
-              } 
+              }
             />
             <Route
               path="/unit/:id"
