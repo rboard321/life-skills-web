@@ -5,10 +5,11 @@ import type {Unit} from './data/sampleUnits';
 import { useState } from 'react';
 
 function App() {
-    const { units, loading } = useUnits();
+    const { units, loading, error } = useUnits();
     const [selectedUnit, setSelectedUnit] = useState<Unit | null>(null);
 
     if (loading) return <div>Loading...</div>;
+    if (error) return <div>Error loading units: {error.message}</div>;
     if (units.length === 0) return <div>No units available</div>;
 
     return (
