@@ -1,28 +1,5 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useRef, useEffect, useState } from 'react';
 import { useProgress } from '../contexts/ProgressContext';
-
-// Extend the Window interface for the YouTube API
-interface YTPlayer {
-  getCurrentTime: () => number;
-  getDuration: () => number;
-  destroy: () => void;
-}
-
-interface YTNamespace {
-  Player: new (container: HTMLDivElement, options: unknown) => YTPlayer;
-}
-
-interface YTPlayerEvent {
-  target: YTPlayer;
-  data: number;
-}
-
-declare global {
-  interface Window {
-    YT: YTNamespace;
-    onYouTubeIframeAPIReady: () => void;
-  }
-}
 
 interface VideoPlayerProps {
   url: string;
@@ -32,165 +9,133 @@ interface VideoPlayerProps {
 
 const VideoPlayer: React.FC<VideoPlayerProps> = ({ url, unitId, onCompleted }) => {
   const { markVideoCompleted, getUnitProgress } = useProgress();
-  const containerRef = useRef<HTMLDivElement>(null);
-  const playerRef = useRef<YTPlayer | null>(null);
-  const [watchTime, setWatchTime] = useState(0);
-  const [duration, setDuration] = useState(0);
+  const iframeRef = useRef<HTMLIFrameElement>(null);
   const [isCompleted, setIsCompleted] = useState(false);
-  const [isPlaying, setIsPlaying] = useState(false);
-  const intervalRef = useRef<NodeJS.Timeout | null>(null);
+  const [watchStartTime, setWatchStartTime] = useState<number | null>(null);
+  const [totalWatchTime, setTotalWatchTime] = useState(0);
+  const [isVisible, setIsVisible] = useState(false);
+  const [estimatedDuration, setEstimatedDuration] = useState(300); // default 5 min
 
   const unitProgress = getUnitProgress(unitId);
-
-  // Extract the video ID from a variety of YouTube URL formats
-  const getVideoId = (videoUrl: string) => {
-    const patterns = [
-      /(?:youtube\.com\/embed\/)([^?&"'>]+)/,
-      /(?:youtube\.com\/watch\?v=)([^?&"'>]+)/,
-      /(?:youtu\.be\/)([^?&"'>]+)/,
-      /(?:youtube\.com\/v\/)([^?&"'>]+)/,
-    ];
-
-    for (const pattern of patterns) {
-      const match = videoUrl.match(pattern);
-      if (match) return match[1];
-    }
-
-    console.warn('Could not extract video ID from URL:', videoUrl);
-    return null;
-  };
-
-  const videoId = getVideoId(url);
 
   useEffect(() => {
     if (unitProgress?.videoCompleted) {
       setIsCompleted(true);
       onCompleted();
     }
+    if (unitProgress?.videoWatchTime) {
+      setTotalWatchTime(unitProgress.videoWatchTime);
+    }
+    if (unitProgress?.videoDuration && unitProgress.videoDuration > 0) {
+      setEstimatedDuration(unitProgress.videoDuration);
+    }
   }, [unitProgress, onCompleted]);
 
   useEffect(() => {
-    if (!videoId) return;
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        setIsVisible(entry.isIntersecting);
 
-    // Load the YouTube IFrame API if it hasn't been loaded yet
-    if (!window.YT) {
-      const tag = document.createElement('script');
-      tag.src = 'https://www.youtube.com/iframe_api';
-      const firstScriptTag = document.getElementsByTagName('script')[0];
-      firstScriptTag.parentNode?.insertBefore(tag, firstScriptTag);
-      window.onYouTubeIframeAPIReady = initializePlayer;
-    } else {
-      initializePlayer();
+        if (entry.isIntersecting && !isCompleted) {
+          setWatchStartTime(Date.now());
+        } else if (!entry.isIntersecting && watchStartTime) {
+          const timeWatched = (Date.now() - watchStartTime) / 1000;
+          const newTotal = totalWatchTime + timeWatched;
+          setTotalWatchTime(newTotal);
+          setWatchStartTime(null);
+          markVideoCompleted(unitId, newTotal, estimatedDuration);
+        }
+      },
+      { threshold: 0.5 }
+    );
+
+    if (iframeRef.current) {
+      observer.observe(iframeRef.current);
     }
 
     return () => {
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current);
-      }
-      if (playerRef.current && typeof playerRef.current.destroy === 'function') {
-        playerRef.current.destroy();
+      observer.disconnect();
+      if (watchStartTime) {
+        const timeWatched = (Date.now() - watchStartTime) / 1000;
+        const finalWatchTime = totalWatchTime + timeWatched;
+        markVideoCompleted(unitId, finalWatchTime, estimatedDuration);
       }
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [videoId]);
+  }, [watchStartTime, totalWatchTime, unitId, markVideoCompleted, isCompleted, estimatedDuration]);
 
-  const initializePlayer = () => {
-    if (!containerRef.current || !videoId) return;
-
-    playerRef.current = new window.YT.Player(containerRef.current, {
-      height: '400',
-      width: '100%',
-      videoId,
-      playerVars: {
-        autoplay: 0,
-        controls: 1,
-        rel: 0,
-        showinfo: 0,
-        modestbranding: 1,
-      },
-      events: {
-        onReady: onPlayerReady,
-        onStateChange: onPlayerStateChange,
-      },
-    });
-  };
-
-  const onPlayerReady = (event: YTPlayerEvent) => {
-    const videoDuration = event.target.getDuration();
-    setDuration(videoDuration);
-  };
-
-  const onPlayerStateChange = (event: YTPlayerEvent) => {
-    const state = event.data;
-    // 1 = playing, 0 = ended, 2 = paused, etc.
-    if (state === 1) {
-      setIsPlaying(true);
-      startTracking();
-    } else {
-      setIsPlaying(false);
-      stopTracking();
-    }
-
-    if (state === 0) {
-      handleVideoComplete();
-    }
-  };
-
-  const startTracking = () => {
-    if (intervalRef.current) return;
-
-    intervalRef.current = setInterval(() => {
-      if (playerRef.current && typeof playerRef.current.getCurrentTime === 'function') {
-        const currentTime = playerRef.current.getCurrentTime();
-        setWatchTime(currentTime);
-
-        if (Math.floor(currentTime) % 10 === 0) {
-          markVideoCompleted(unitId, currentTime, duration);
-        }
-
-        if (currentTime >= duration * 0.9 && !isCompleted) {
-          handleVideoComplete();
-        }
-      }
-    }, 1000);
-  };
-
-  const stopTracking = () => {
-    if (intervalRef.current) {
-      clearInterval(intervalRef.current);
-      intervalRef.current = null;
-    }
-  };
-
-  const handleVideoComplete = () => {
+  const handleVideoComplete = React.useCallback(() => {
     if (!isCompleted) {
       setIsCompleted(true);
       onCompleted();
-      markVideoCompleted(unitId, watchTime, duration);
-      stopTracking();
+
+      const finalTime = watchStartTime
+        ? totalWatchTime + (Date.now() - watchStartTime) / 1000
+        : totalWatchTime;
+      markVideoCompleted(unitId, finalTime, estimatedDuration);
     }
+  }, [isCompleted, onCompleted, watchStartTime, totalWatchTime, unitId, markVideoCompleted, estimatedDuration]);
+
+  useEffect(() => {
+    if (!isVisible || !watchStartTime || isCompleted) return;
+
+    const interval = setInterval(() => {
+      const currentSessionTime = (Date.now() - (watchStartTime ?? 0)) / 1000;
+      const currentTotalTime = totalWatchTime + currentSessionTime;
+
+      markVideoCompleted(unitId, currentTotalTime, estimatedDuration);
+
+      if (currentTotalTime >= estimatedDuration * 0.85) {
+        handleVideoComplete();
+      }
+    }, 30000);
+
+    return () => clearInterval(interval);
+  }, [isVisible, watchStartTime, totalWatchTime, unitId, markVideoCompleted, estimatedDuration, isCompleted, handleVideoComplete]);
+
+  const getCurrentWatchTime = () => {
+    if (watchStartTime) {
+      return totalWatchTime + (Date.now() - watchStartTime) / 1000;
+    }
+    return totalWatchTime;
   };
 
-  const progress = duration > 0 ? Math.min((watchTime / duration) * 100, 100) : 0;
+  const progress = Math.min((getCurrentWatchTime() / estimatedDuration) * 100, 100);
 
-  if (!videoId) {
-    return (
-      <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-        <p className="text-red-600">Invalid YouTube URL. Please check the video link.</p>
-      </div>
-    );
-  }
+  const showResumeIndicator =
+    !!unitProgress?.videoWatchTime && unitProgress.videoWatchTime > 30 && !isCompleted;
 
   return (
     <div className="video-player-container">
       <div className="relative">
-        <div ref={containerRef} className="w-full h-96 bg-black rounded-lg" />
+        {showResumeIndicator && (
+          <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-blue-900">Resume watching</p>
+                <p className="text-xs text-blue-700">
+                  You were at {Math.floor(unitProgress!.videoWatchTime / 60)}:
+                  {(Math.floor(unitProgress!.videoWatchTime) % 60).toString().padStart(2, '0')}
+                </p>
+              </div>
+              <div className="text-2xl">📍</div>
+            </div>
+          </div>
+        )}
+
+        <iframe
+          ref={iframeRef}
+          width="100%"
+          height="400"
+          src={url}
+          title={`Unit ${unitId} Video`}
+          allow="autoplay; encrypted-media"
+          allowFullScreen
+          className="rounded-lg shadow-lg"
+        />
 
         <div className="mt-4 bg-gray-200 rounded-full h-3 overflow-hidden">
           <div
-            className={`h-full transition-all duration-500 ${
-              isCompleted ? 'bg-green-500' : 'bg-blue-500'
-            }`}
+            className={`h-full transition-all duration-500 ${isCompleted ? 'bg-green-500' : 'bg-blue-500'}`}
             style={{ width: `${progress}%` }}
           />
         </div>
@@ -199,23 +144,43 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ url, unitId, onCompleted }) =
           <span>Progress: {progress.toFixed(1)}%</span>
           <div className="flex items-center space-x-4">
             <span
-              className={`px-2 py-1 rounded text-xs ${
-                isPlaying ? 'bg-green-100 text-green-600' : 'bg-gray-100 text-gray-600'
-              }`}
+              className={`px-2 py-1 rounded text-xs ${isVisible ? 'bg-blue-100 text-blue-600' : 'bg-gray-100 text-gray-600'}`}
             >
-              {isPlaying ? '▶ Playing' : '⏸ Paused'}
+              {isVisible ? '👁 Watching' : '💤 Away'}
             </span>
             <span>
               {isCompleted ? (
                 <span className="text-green-600 font-semibold">✓ Completed</span>
               ) : (
-                `${Math.floor(watchTime / 60)}:${(Math.floor(watchTime) % 60)
+                `${Math.floor(getCurrentWatchTime() / 60)}:${(Math.floor(getCurrentWatchTime()) % 60)
                   .toString()
                   .padStart(2, '0')} watched`
               )}
             </span>
           </div>
         </div>
+
+        {!isCompleted && progress > 60 && (
+          <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+            <p className="text-sm text-blue-700 mb-2">
+              Watched most of the video? You can mark it as complete.
+            </p>
+            <button
+              onClick={handleVideoComplete}
+              className="bg-blue-600 text-white px-4 py-2 rounded text-sm hover:bg-blue-700"
+            >
+              Mark Video as Complete
+            </button>
+          </div>
+        )}
+
+        {isCompleted && (
+          <div className="mt-4 p-3 bg-green-50 border border-green-200 rounded-lg text-center">
+            <span className="text-green-700 font-medium">
+              🎉 Video completed! You can now access the activities below.
+            </span>
+          </div>
+        )}
       </div>
     </div>
   );
