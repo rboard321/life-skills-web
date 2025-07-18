@@ -60,14 +60,6 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
                 </ProtectedRoute>
               }
             />
-            <Route
-              path="/dashboard"
-              element={
-                <ProtectedRoute>
-                  <Dashboard />
-                </ProtectedRoute>
-              }
-            />
             
             {/* Catch all route */}
             <Route path="*" element={<Navigate to="/" />} />
