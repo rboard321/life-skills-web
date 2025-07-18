@@ -4,6 +4,7 @@ import './index.css';
 import App from './App';
 import Dashboard from './components/Dashboard';
 import AdminPage from './components/AdminPage';
+import Dashboard from './components/Dashboard';
 import Login from './components/auth/Login';
 import Signup from './components/auth/Signup';
 import ForgotPassword from './components/auth/ForgotPassword';
@@ -58,7 +59,15 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
                 <ProtectedRoute>
                   <AdminPage />
                 </ProtectedRoute>
-              } 
+              }
+            />
+            <Route
+              path="/dashboard"
+              element={
+                <ProtectedRoute>
+                  <Dashboard />
+                </ProtectedRoute>
+              }
             />
             
             {/* Catch all route */}
