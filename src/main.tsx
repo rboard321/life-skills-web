@@ -4,6 +4,7 @@ import './index.css';
 import App from './App';
 import Dashboard from './components/Dashboard';
 import AdminPage from './components/AdminPage';
+import IndividualUnitPage from './components/IndividualUnitPage';
 import Login from './components/auth/Login';
 import Signup from './components/auth/Signup';
 import ForgotPassword from './components/auth/ForgotPassword';
@@ -43,14 +44,13 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
                 </ProtectedRoute>
               } 
             />
-            <Route 
-              path="/unit/:id" 
+            <Route
+              path="/unit/:id"
               element={
                 <ProtectedRoute>
-                  {/* We'll need to create this component */}
-                  <div>Individual Unit Page Coming Soon</div>
+                  <IndividualUnitPage />
                 </ProtectedRoute>
-              } 
+              }
             />
             <Route 
               path="/admin" 
