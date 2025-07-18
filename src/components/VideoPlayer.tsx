@@ -118,6 +118,12 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ url, unitId, onCompleted }) =
   const onPlayerReady = (event: YTPlayerEvent) => {
     const videoDuration = event.target.getDuration();
     setDuration(videoDuration);
+
+    if (unitProgress?.videoWatchTime && unitProgress.videoWatchTime > 10) {
+      const resumeTime = Math.min(unitProgress.videoWatchTime, videoDuration - 30);
+      event.target.seekTo(resumeTime, true);
+      setWatchTime(resumeTime);
+    }
   };
 
   const onPlayerStateChange = (event: YTPlayerEvent) => {
@@ -144,11 +150,11 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ url, unitId, onCompleted }) =
         const currentTime = playerRef.current.getCurrentTime();
         setWatchTime(currentTime);
 
-        if (Math.floor(currentTime) % 10 === 0) {
+        if (Math.floor(currentTime) % 15 === 0 && currentTime > 0) {
           markVideoCompleted(unitId, currentTime, duration);
         }
 
-        if (currentTime >= duration * 0.9 && !isCompleted) {
+        if (currentTime >= duration * 0.95 && duration > 0 && !isCompleted) {
           handleVideoComplete();
         }
       }
@@ -186,6 +192,12 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ url, unitId, onCompleted }) =
       <div className="relative">
         <div ref={containerRef} className="w-full h-96 bg-black rounded-lg" />
 
+        {unitProgress?.videoWatchTime && unitProgress.videoWatchTime > 10 && !isCompleted && (
+          <div className="mt-2 p-2 bg-blue-50 border border-blue-200 rounded text-sm text-blue-700">
+            📍 Resuming from {Math.floor(unitProgress.videoWatchTime / 60)}:{(Math.floor(unitProgress.videoWatchTime) % 60).toString().padStart(2, '0')}
+          </div>
+        )}
+
         <div className="mt-4 bg-gray-200 rounded-full h-3 overflow-hidden">
           <div
             className={`h-full transition-all duration-500 ${
@@ -211,7 +223,9 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ url, unitId, onCompleted }) =
               ) : (
                 `${Math.floor(watchTime / 60)}:${(Math.floor(watchTime) % 60)
                   .toString()
-                  .padStart(2, '0')} watched`
+                  .padStart(2, '0')} / ${Math.floor(duration / 60)}:${(Math.floor(duration) % 60)
+                  .toString()
+                  .padStart(2, '0')}`
               )}
             </span>
           </div>
