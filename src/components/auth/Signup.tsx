@@ -50,13 +50,17 @@ const Signup: React.FC = () => {
       setLoading(true);
       await signup(formData.email, formData.password, formData.name);
       navigate('/');
-    } catch (error: any) {
-      const errorMessage =
-        error.code === 'auth/email-already-in-use'
-          ? 'An account with this email already exists'
-          : error.code === 'auth/weak-password'
-          ? 'Password is too weak'
-          : error.message || 'Failed to create account';
+    } catch (error: unknown) {
+      let errorMessage = 'Failed to create account';
+      if (error instanceof Error) {
+        const { code, message } = error as Error & { code?: string };
+        errorMessage =
+          code === 'auth/email-already-in-use'
+            ? 'An account with this email already exists'
+            : code === 'auth/weak-password'
+            ? 'Password is too weak'
+            : message || 'Failed to create account';
+      }
       setError(errorMessage);
     } finally {
       setLoading(false);

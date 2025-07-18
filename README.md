@@ -75,3 +75,9 @@ VITE_FIREBASE_MEASUREMENT_ID=yourMeasurementId
 ```
 
 Read these variables in `src/firebase.ts` via `import.meta.env` when initializing Firebase.
+
+## License
+
+This project is licensed under the [MIT License](LICENSE).
+
+
