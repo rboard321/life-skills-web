@@ -31,6 +31,21 @@ export default tseslint.config({
 })
 ```
 
+## Environment Variables
+
+This project requires several Firebase-related environment variables. Copy
+`.env.example` to `.env` and fill in your credentials.
+
+```
+VITE_FIREBASE_API_KEY=
+VITE_FIREBASE_AUTH_DOMAIN=
+VITE_FIREBASE_PROJECT_ID=
+VITE_FIREBASE_STORAGE_BUCKET=
+VITE_FIREBASE_MESSAGING_SENDER_ID=
+VITE_FIREBASE_APP_ID=
+VITE_FIREBASE_MEASUREMENT_ID=
+```
+
 You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
 
 ```js
@@ -52,3 +67,32 @@ export default tseslint.config({
   },
 })
 ```
+
+## Getting Started
+
+1. **Install Node.js** – Node 18 or later is recommended.
+2. **Install dependencies** – run `npm ci` at the project root.
+3. **Start the dev server** – run `npm run dev` and open the printed URL.
+
+### Firebase environment variables
+
+If the Firebase configuration in `src/firebase.ts` is moved outside the source,
+create an `.env` file containing:
+
+```
+VITE_FIREBASE_API_KEY=yourApiKey
+VITE_FIREBASE_AUTH_DOMAIN=yourAuthDomain
+VITE_FIREBASE_PROJECT_ID=yourProjectId
+VITE_FIREBASE_STORAGE_BUCKET=yourStorageBucket
+VITE_FIREBASE_MESSAGING_SENDER_ID=yourMessagingSenderId
+VITE_FIREBASE_APP_ID=yourAppId
+VITE_FIREBASE_MEASUREMENT_ID=yourMeasurementId
+```
+
+Read these variables in `src/firebase.ts` via `import.meta.env` when initializing Firebase.
+
+## License
+
+This project is licensed under the [MIT License](LICENSE).
+
+
