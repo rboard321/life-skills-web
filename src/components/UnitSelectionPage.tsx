@@ -67,10 +67,10 @@ const UnitSelectionPage: React.FC = () => {
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
         {units.map((unit) => {
           const progress = getUnitProgress(unit.id);
-          const activitiesCompleted = progress?.activitiesCompleted.length || 0;
-          const totalActivities = unit.activities.length;
+          const lessonsCompleted = progress?.overallProgress.lessonsCompleted || 0;
+          const totalLessons = unit.totalLessons ?? (unit.lessons ? unit.lessons.length : 0);
           const isCompleted = progress?.completedAt;
-          const isStarted = progress?.videoCompleted || activitiesCompleted > 0;
+          const isStarted = lessonsCompleted > 0;
 
           return (
             <div
@@ -91,23 +91,11 @@ const UnitSelectionPage: React.FC = () => {
 
                 {/* Progress indicators */}
                 <div className="space-y-3 mb-6">
-                  {/* Video progress */}
+                  {/* Lessons progress */}
                   <div className="flex items-center justify-between text-sm">
-                    <span className="text-gray-600">Video:</span>
-                    <span className={`px-2 py-1 rounded text-xs font-medium ${
-                      progress?.videoCompleted ? 
-                        'bg-green-100 text-green-800' : 
-                        'bg-gray-100 text-gray-600'
-                    }`}>
-                      {progress?.videoCompleted ? 'Completed' : 'Not Started'}
-                    </span>
-                  </div>
-
-                  {/* Activities progress */}
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-gray-600">Activities:</span>
+                    <span className="text-gray-600">Lessons:</span>
                     <span className="text-blue-600 font-medium">
-                      {activitiesCompleted}/{totalActivities}
+                      {lessonsCompleted}/{totalLessons}
                     </span>
                   </div>
 
@@ -118,7 +106,7 @@ const UnitSelectionPage: React.FC = () => {
                         isCompleted ? 'bg-green-500' : 'bg-blue-500'
                       }`}
                       style={{
-                        width: `${((activitiesCompleted + (progress?.videoCompleted ? 1 : 0)) / (totalActivities + 1)) * 100}%`
+                        width: `${totalLessons > 0 ? (lessonsCompleted / totalLessons) * 100 : 0}%`
                       }}
                     />
                   </div>

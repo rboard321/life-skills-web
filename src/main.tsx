@@ -4,7 +4,8 @@ import './index.css';
 import UnitSelectionPage from './components/UnitSelectionPage';
 import Dashboard from './components/Dashboard';
 import AdminPage from './components/AdminPage';
-import IndividualUnitPage from './components/IndividualUnitPage';
+import UnitPage from './components/UnitPage';
+import LessonPage from './components/LessonPage';
 import Login from './components/auth/Login';
 import Signup from './components/auth/Signup';
 import ForgotPassword from './components/auth/ForgotPassword';
@@ -48,12 +49,20 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
               path="/unit/:id"
               element={
                 <ProtectedRoute>
-                  <IndividualUnitPage />
+                  <UnitPage />
                 </ProtectedRoute>
               }
             />
-            <Route 
-              path="/admin" 
+            <Route
+              path="/unit/:unitId/lesson/:lessonId"
+              element={
+                <ProtectedRoute>
+                  <LessonPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/admin"
               element={
                 <ProtectedRoute>
                   <AdminPage />

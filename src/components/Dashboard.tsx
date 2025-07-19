@@ -40,10 +40,10 @@ const Dashboard: React.FC = () => {
     const progress = getUnitProgress(unit.id);
     return progress?.completedAt;
   }).length;
-  
+
   const inProgressUnits = units.filter(unit => {
     const progress = getUnitProgress(unit.id);
-    return !progress?.completedAt && (progress?.videoCompleted || (progress?.activitiesCompleted.length || 0) > 0);
+    return !progress?.completedAt && (progress?.overallProgress.lessonsCompleted || 0) > 0;
   }).length;
 
   return (
@@ -150,10 +150,10 @@ const Dashboard: React.FC = () => {
           <div className="space-y-4">
             {units.slice(0, 5).map((unit) => {
               const progress = getUnitProgress(unit.id);
-              const activitiesCompleted = progress?.activitiesCompleted.length || 0;
-              const totalActivities = unit.activities.length;
+              const lessonsCompleted = progress?.overallProgress.lessonsCompleted || 0;
+              const totalLessons = unit.totalLessons ?? (unit.lessons ? unit.lessons.length : 0);
               const isCompleted = progress?.completedAt;
-              const isStarted = progress?.videoCompleted || activitiesCompleted > 0;
+              const isStarted = lessonsCompleted > 0;
 
               return (
                 <div
@@ -164,10 +164,7 @@ const Dashboard: React.FC = () => {
                     <h3 className="font-medium text-gray-900 mb-1">{unit.title}</h3>
                     <div className="flex items-center space-x-4 text-sm text-gray-600">
                       <span>
-                        Video: {progress?.videoCompleted ? '✅' : '⭕'}
-                      </span>
-                      <span>
-                        Activities: {activitiesCompleted}/{totalActivities}
+                        Lessons: {lessonsCompleted}/{totalLessons}
                       </span>
                       <span className={`px-2 py-1 rounded text-xs font-medium ${
                         isCompleted ? 

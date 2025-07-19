@@ -2,15 +2,14 @@ import React, { createContext, useContext, useEffect, useState, useCallback } fr
 import { doc, setDoc, getDoc, collection, query, where, getDocs } from 'firebase/firestore';
 import { db } from '../firebase';
 import { useAuth } from './AuthContext';
-import type { UserProgress, UnitProgress } from '../types/progress';
+import type { UnitProgress, LessonProgress } from '../data/sampleUnits';
 
 interface ProgressContextType {
-  userProgress: UserProgress[];
+  userProgress: UnitProgress[];
   isProgressLoading: boolean;
-  markVideoCompleted: (unitId: number, watchTime: number, duration: number) => Promise<void>;
-  markActivityCompleted: (unitId: number, activityId: number) => Promise<void>;
-  getUnitProgress: (unitId: number) => UserProgress | undefined;
-  getProgressSummary: () => UnitProgress[];
+  markLessonVideoCompleted: (unitId: number, lessonId: number, watchTime: number, duration: number) => Promise<void>;
+  markLessonActivityCompleted: (unitId: number, lessonId: number, activityId: number) => Promise<void>;
+  getUnitProgress: (unitId: number) => UnitProgress | undefined;
   refreshProgress: () => Promise<void>;
 }
 
@@ -26,7 +25,7 @@ export const useProgress = () => {
 
 export const ProgressProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { currentUser } = useAuth();
-  const [userProgress, setUserProgress] = useState<UserProgress[]>([]);
+  const [userProgress, setUserProgress] = useState<UnitProgress[]>([]);
   const [isProgressLoading, setIsProgressLoading] = useState(true);
 
   const refreshProgress = useCallback(async () => {
@@ -44,12 +43,25 @@ export const ProgressProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       );
 
       const querySnapshot = await getDocs(progressQuery);
-      const progress = querySnapshot.docs.map(doc => ({
-        ...doc.data(),
-        startedAt: doc.data().startedAt?.toDate() || new Date(),
-        completedAt: doc.data().completedAt?.toDate(),
-        lastAccessedAt: doc.data().lastAccessedAt?.toDate() || new Date(),
-      })) as UserProgress[];
+      const progress = querySnapshot.docs.map(doc => {
+        const data = doc.data();
+        return {
+          ...data,
+          startedAt: data.startedAt?.toDate() || new Date(),
+          completedAt: data.completedAt?.toDate(),
+          lastAccessedAt: data.lastAccessedAt?.toDate() || new Date(),
+          lessonsProgress: Object.entries(data.lessonsProgress || {}).reduce((acc, [lessonId, lessonData]) => {
+            const ld = lessonData as any;
+            acc[parseInt(lessonId)] = {
+              ...ld,
+              startedAt: ld.startedAt?.toDate() || new Date(),
+              completedAt: ld.completedAt?.toDate(),
+              lastAccessedAt: ld.lastAccessedAt?.toDate() || new Date(),
+            } as LessonProgress;
+            return acc;
+          }, {} as Record<number, LessonProgress>)
+        } as UnitProgress;
+      });
 
       setUserProgress(progress);
     } catch (error) {
@@ -63,89 +75,130 @@ export const ProgressProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     refreshProgress();
   }, [currentUser, refreshProgress]);
 
-  const saveProgress = async (progress: Partial<UserProgress> & { unitId: number }) => {
+  const saveUnitProgress = async (unitId: number, updatedProgress: Partial<UnitProgress>) => {
     if (!currentUser) return;
 
-    const progressId = `${currentUser.uid}_${progress.unitId}`;
+    const progressId = `${currentUser.uid}_${unitId}`;
     const progressRef = doc(db, 'userProgress', progressId);
 
     const existingProgress = await getDoc(progressRef);
     const now = new Date();
 
-    const existingData = existingProgress.data() as Partial<UserProgress> | undefined;
+    const existingData = existingProgress.data() as Partial<UnitProgress> | undefined;
 
-    const updatedProgress: UserProgress = {
+    const newProgress: UnitProgress = {
       userId: currentUser.uid,
-      videoCompleted: false,
-      videoWatchTime: 0,
-      videoDuration: 0,
-      activitiesCompleted: [],
+      unitId,
+      lessonsProgress: {},
       startedAt: now,
-      ...existingData,
-      ...progress,
       lastAccessedAt: now,
-      unitId: progress.unitId,
-    } as UserProgress;
+      overallProgress: {
+        lessonsCompleted: 0,
+        totalLessons: 0,
+        percentComplete: 0
+      },
+      ...(existingData || {}),
+      ...updatedProgress,
+    };
 
-    // Mark as completed if video is done and all activities are completed
-    if (updatedProgress.videoCompleted && updatedProgress.activitiesCompleted.length > 0) {
-      updatedProgress.completedAt = now;
+    const lessonsProgress = Object.values(newProgress.lessonsProgress);
+    const completedLessons = lessonsProgress.filter(l => l.completedAt).length;
+    const totalLessons = lessonsProgress.length;
+
+    newProgress.overallProgress = {
+      lessonsCompleted: completedLessons,
+      totalLessons,
+      percentComplete: totalLessons > 0 ? Math.round((completedLessons / totalLessons) * 100) : 0
+    };
+
+    if (completedLessons > 0 && completedLessons === totalLessons) {
+      newProgress.completedAt = now;
     }
 
-    await setDoc(progressRef, updatedProgress);
+    await setDoc(progressRef, newProgress);
     await refreshProgress();
   };
 
-  const markVideoCompleted = async (unitId: number, watchTime: number, duration: number) => {
-    const completionThreshold = 0.9; // 90% watched = completed
+  const markLessonVideoCompleted = async (unitId: number, lessonId: number, watchTime: number, duration: number) => {
+    const completionThreshold = 0.85;
     const isCompleted = (watchTime / duration) >= completionThreshold;
 
-    await saveProgress({
-      unitId,
+    const existingUnitProgress = getUnitProgress(unitId);
+    const existingLessonProgress = existingUnitProgress?.lessonsProgress[lessonId];
+
+    const now = new Date();
+    const updatedLessonProgress: LessonProgress = {
+      lessonId,
       videoCompleted: isCompleted,
-      videoWatchTime: Math.max(watchTime, userProgress.find(p => p.unitId === unitId)?.videoWatchTime || 0),
+      videoWatchTime: Math.max(watchTime, existingLessonProgress?.videoWatchTime || 0),
       videoDuration: duration,
+      activitiesCompleted: existingLessonProgress?.activitiesCompleted || [],
+      startedAt: existingLessonProgress?.startedAt || now,
+      lastAccessedAt: now,
+      ...(isCompleted && !existingLessonProgress?.completedAt && { completedAt: now })
+    };
+
+    if (updatedLessonProgress.videoCompleted && updatedLessonProgress.activitiesCompleted.length > 0) {
+      updatedLessonProgress.completedAt = now;
+    }
+
+    const updatedLessonsProgress = {
+      ...existingUnitProgress?.lessonsProgress,
+      [lessonId]: updatedLessonProgress
+    };
+
+    await saveUnitProgress(unitId, {
+      lessonsProgress: updatedLessonsProgress,
+      lastAccessedAt: now
     });
   };
 
-  const markActivityCompleted = async (unitId: number, activityId: number) => {
-    const existingProgress = getUnitProgress(unitId);
-    const completedActivities = existingProgress?.activitiesCompleted || [];
+  const markLessonActivityCompleted = async (unitId: number, lessonId: number, activityId: number) => {
+    const existingUnitProgress = getUnitProgress(unitId);
+    const existingLessonProgress = existingUnitProgress?.lessonsProgress[lessonId];
 
+    if (!existingLessonProgress) {
+      console.error('Lesson progress not found');
+      return;
+    }
+
+    const completedActivities = [...(existingLessonProgress.activitiesCompleted || [])];
     if (!completedActivities.includes(activityId)) {
       completedActivities.push(activityId);
     }
 
-    await saveProgress({
-      unitId,
+    const now = new Date();
+    const updatedLessonProgress: LessonProgress = {
+      ...existingLessonProgress,
       activitiesCompleted: completedActivities,
+      lastAccessedAt: now
+    };
+
+    if (updatedLessonProgress.videoCompleted && completedActivities.length > 0) {
+      updatedLessonProgress.completedAt = now;
+    }
+
+    const updatedLessonsProgress = {
+      ...existingUnitProgress?.lessonsProgress,
+      [lessonId]: updatedLessonProgress
+    };
+
+    await saveUnitProgress(unitId, {
+      lessonsProgress: updatedLessonsProgress,
+      lastAccessedAt: now
     });
   };
 
-  const getUnitProgress = (unitId: number): UserProgress | undefined => {
+  const getUnitProgress = (unitId: number): UnitProgress | undefined => {
     return userProgress.find(p => p.unitId === unitId);
-  };
-
-  const getProgressSummary = (): UnitProgress[] => {
-    return userProgress.map(progress => ({
-      unitId: progress.unitId,
-      title: `Unit ${progress.unitId}`,
-      status: progress.completedAt ? 'completed' :
-               progress.videoCompleted ? 'in-progress' : 'not-started',
-      videoProgress: progress.videoDuration > 0 ?
-                    Math.round((progress.videoWatchTime / progress.videoDuration) * 100) : 0,
-      activitiesCompleted: progress.activitiesCompleted.length,
-      totalActivities: 2,
-    }));
   };
 
   const value: ProgressContextType = {
     userProgress,
     isProgressLoading,
-    markVideoCompleted,
-    markActivityCompleted,
+    markLessonVideoCompleted,
+    markLessonActivityCompleted,
     getUnitProgress,
-    getProgressSummary,
     refreshProgress,
   };
 
