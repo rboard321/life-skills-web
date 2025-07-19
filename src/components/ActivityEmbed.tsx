@@ -5,20 +5,22 @@ import type { Activity } from '../data/sampleUnits';
 interface ActivityEmbedProps {
   activity: Activity;
   unitId: number;
+  lessonId: number;
   isUnlocked: boolean;
 }
 
-const ActivityEmbed: React.FC<ActivityEmbedProps> = ({ activity, unitId, isUnlocked }) => {
-  const { markActivityCompleted, getUnitProgress } = useProgress();
+const ActivityEmbed: React.FC<ActivityEmbedProps> = ({ activity, unitId, lessonId, isUnlocked }) => {
+  const { markLessonActivityCompleted, getUnitProgress } = useProgress();
   const [isCompleted, setIsCompleted] = useState(false);
 
   const unitProgress = getUnitProgress(unitId);
-  const isActivityCompleted = unitProgress?.activitiesCompleted.includes(activity.id) || false;
+  const lessonProgress = unitProgress?.lessonsProgress[lessonId];
+  const isActivityCompleted = lessonProgress?.activitiesCompleted.includes(activity.id) || false;
 
   const handleActivityComplete = () => {
     if (!isCompleted && !isActivityCompleted) {
       setIsCompleted(true);
-      markActivityCompleted(unitId, activity.id);
+      markLessonActivityCompleted(unitId, lessonId, activity.id);
     }
   };
 
@@ -37,7 +39,7 @@ const ActivityEmbed: React.FC<ActivityEmbedProps> = ({ activity, unitId, isUnloc
   return (
     <div className="mt-6">
       <div className="flex items-center justify-between mb-4">
-        <h3 className="text-lg font-semibold">Activity {activity.id}</h3>
+        <h3 className="text-lg font-semibold">{activity.title || `Activity ${activity.id}`}</h3>
         {(isCompleted || isActivityCompleted) && (
           <span className="bg-green-100 text-green-800 px-3 py-1 rounded-full text-sm font-medium">
             ✓ Completed
@@ -50,7 +52,7 @@ const ActivityEmbed: React.FC<ActivityEmbedProps> = ({ activity, unitId, isUnloc
           src={activity.url}
           width="100%"
           height="400"
-          title={`Activity ${activity.id}`}
+          title={activity.title || `Activity ${activity.id}`}
           allowFullScreen
           className="rounded-lg shadow-lg"
           onLoad={() => {

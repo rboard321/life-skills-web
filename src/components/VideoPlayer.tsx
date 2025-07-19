@@ -4,11 +4,12 @@ import { useProgress } from '../contexts/ProgressContext';
 interface VideoPlayerProps {
   url: string;
   unitId: number;
+  lessonId: number;
   onCompleted: () => void;
 }
 
-const VideoPlayer: React.FC<VideoPlayerProps> = ({ url, unitId, onCompleted }) => {
-  const { markVideoCompleted, getUnitProgress } = useProgress();
+const VideoPlayer: React.FC<VideoPlayerProps> = ({ url, unitId, lessonId, onCompleted }) => {
+  const { markLessonVideoCompleted, getUnitProgress } = useProgress();
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const [isCompleted, setIsCompleted] = useState(false);
   const [watchStartTime, setWatchStartTime] = useState<number | null>(null);
@@ -17,19 +18,20 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ url, unitId, onCompleted }) =
   const [estimatedDuration, setEstimatedDuration] = useState(300); // default 5 min
 
   const unitProgress = getUnitProgress(unitId);
+  const lessonProgress = unitProgress?.lessonsProgress[lessonId];
 
   useEffect(() => {
-    if (unitProgress?.videoCompleted) {
+    if (lessonProgress?.videoCompleted) {
       setIsCompleted(true);
       onCompleted();
     }
-    if (unitProgress?.videoWatchTime) {
-      setTotalWatchTime(unitProgress.videoWatchTime);
+    if (lessonProgress?.videoWatchTime) {
+      setTotalWatchTime(lessonProgress.videoWatchTime);
     }
-    if (unitProgress?.videoDuration && unitProgress.videoDuration > 0) {
-      setEstimatedDuration(unitProgress.videoDuration);
+    if (lessonProgress?.videoDuration && lessonProgress.videoDuration > 0) {
+      setEstimatedDuration(lessonProgress.videoDuration);
     }
-  }, [unitProgress, onCompleted]);
+  }, [lessonProgress, onCompleted]);
 
   useEffect(() => {
     const observer = new IntersectionObserver(
@@ -43,7 +45,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ url, unitId, onCompleted }) =
           const newTotal = totalWatchTime + timeWatched;
           setTotalWatchTime(newTotal);
           setWatchStartTime(null);
-          markVideoCompleted(unitId, newTotal, estimatedDuration);
+          markLessonVideoCompleted(unitId, lessonId, newTotal, estimatedDuration);
         }
       },
       { threshold: 0.5 }
@@ -58,10 +60,10 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ url, unitId, onCompleted }) =
       if (watchStartTime) {
         const timeWatched = (Date.now() - watchStartTime) / 1000;
         const finalWatchTime = totalWatchTime + timeWatched;
-        markVideoCompleted(unitId, finalWatchTime, estimatedDuration);
+        markLessonVideoCompleted(unitId, lessonId, finalWatchTime, estimatedDuration);
       }
     };
-  }, [watchStartTime, totalWatchTime, unitId, markVideoCompleted, isCompleted, estimatedDuration]);
+  }, [watchStartTime, totalWatchTime, unitId, lessonId, markLessonVideoCompleted, isCompleted, estimatedDuration]);
 
   const handleVideoComplete = React.useCallback(() => {
     if (!isCompleted) {
@@ -71,9 +73,9 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ url, unitId, onCompleted }) =
       const finalTime = watchStartTime
         ? totalWatchTime + (Date.now() - watchStartTime) / 1000
         : totalWatchTime;
-      markVideoCompleted(unitId, finalTime, estimatedDuration);
+      markLessonVideoCompleted(unitId, lessonId, finalTime, estimatedDuration);
     }
-  }, [isCompleted, onCompleted, watchStartTime, totalWatchTime, unitId, markVideoCompleted, estimatedDuration]);
+  }, [isCompleted, onCompleted, watchStartTime, totalWatchTime, unitId, lessonId, markLessonVideoCompleted, estimatedDuration]);
 
   useEffect(() => {
     if (!isVisible || !watchStartTime || isCompleted) return;
@@ -82,7 +84,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ url, unitId, onCompleted }) =
       const currentSessionTime = (Date.now() - (watchStartTime ?? 0)) / 1000;
       const currentTotalTime = totalWatchTime + currentSessionTime;
 
-      markVideoCompleted(unitId, currentTotalTime, estimatedDuration);
+      markLessonVideoCompleted(unitId, lessonId, currentTotalTime, estimatedDuration);
 
       if (currentTotalTime >= estimatedDuration * 0.85) {
         handleVideoComplete();
@@ -90,7 +92,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ url, unitId, onCompleted }) =
     }, 30000);
 
     return () => clearInterval(interval);
-  }, [isVisible, watchStartTime, totalWatchTime, unitId, markVideoCompleted, estimatedDuration, isCompleted, handleVideoComplete]);
+  }, [isVisible, watchStartTime, totalWatchTime, unitId, lessonId, markLessonVideoCompleted, estimatedDuration, isCompleted, handleVideoComplete]);
 
   const getCurrentWatchTime = () => {
     if (watchStartTime) {
@@ -102,7 +104,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ url, unitId, onCompleted }) =
   const progress = Math.min((getCurrentWatchTime() / estimatedDuration) * 100, 100);
 
   const showResumeIndicator =
-    !!unitProgress?.videoWatchTime && unitProgress.videoWatchTime > 30 && !isCompleted;
+    !!lessonProgress?.videoWatchTime && lessonProgress.videoWatchTime > 30 && !isCompleted;
 
   return (
     <div className="video-player-container">
@@ -113,8 +115,8 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ url, unitId, onCompleted }) =
               <div>
                 <p className="text-sm font-medium text-blue-900">Resume watching</p>
                 <p className="text-xs text-blue-700">
-                  You were at {Math.floor(unitProgress!.videoWatchTime / 60)}:
-                  {(Math.floor(unitProgress!.videoWatchTime) % 60).toString().padStart(2, '0')}
+                  You were at {Math.floor(lessonProgress!.videoWatchTime / 60)}:
+                  {(Math.floor(lessonProgress!.videoWatchTime) % 60).toString().padStart(2, '0')}
                 </p>
               </div>
               <div className="text-2xl">📍</div>
@@ -127,7 +129,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ url, unitId, onCompleted }) =
           width="100%"
           height="400"
           src={url}
-          title={`Unit ${unitId} Video`}
+          title={`Unit ${unitId} Lesson ${lessonId} Video`}
           allow="autoplay; encrypted-media"
           allowFullScreen
           className="rounded-lg shadow-lg"
