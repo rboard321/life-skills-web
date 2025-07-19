@@ -12,7 +12,7 @@ import type { Unit, Lesson, Activity } from '../data/sampleUnits';
 
 const AdminPage: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'units' | 'lessons'>('units');
-  const [existingUnits, setExistingUnits] = useState<Unit[]>([]);
+  const [existingUnits, setExistingUnits] = useState<(Unit & { docId: string })[]>([]);
 
   // Unit creation state
   const [unitTitle, setUnitTitle] = useState('');
@@ -112,9 +112,7 @@ const AdminPage: React.FC = () => {
       return;
     }
 
-    const selectedUnit = (existingUnits as (Unit & { docId: string })[]).find(
-      u => u.docId === selectedUnitId
-    );
+    const selectedUnit = existingUnits.find(u => u.docId === selectedUnitId);
     if (!selectedUnit) {
       alert('Selected unit not found');
       return;
