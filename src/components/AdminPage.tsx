@@ -2,17 +2,17 @@ import React, { useState, useEffect } from 'react';
 import { db } from '../firebase';
 import {
   collection,
+  addDoc,
   getDocs,
   doc,
   updateDoc,
-  arrayUnion,
-  setDoc
+  arrayUnion
 } from 'firebase/firestore';
 import type { Unit, Lesson, Activity } from '../data/sampleUnits';
 
 const AdminPage: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'units' | 'lessons'>('units');
-  const [existingUnits, setExistingUnits] = useState<(Unit & { docId: string })[]>([]);
+  const [existingUnits, setExistingUnits] = useState<Unit[]>([]);
 
   // Unit creation state
   const [unitTitle, setUnitTitle] = useState('');
@@ -36,11 +36,14 @@ const AdminPage: React.FC = () => {
   const loadUnits = async () => {
     try {
       const querySnapshot = await getDocs(collection(db, 'units'));
-      const units = querySnapshot.docs.map(doc => ({
-        ...(doc.data() as Omit<Unit, 'id'>),
-        id: parseInt(doc.id) || doc.id, // Handle both string and number IDs
-        docId: doc.id // Keep the actual Firestore document ID
-      })) as (Unit & { docId: string })[];
+      const units = querySnapshot.docs.map(doc => {
+        const data = doc.data();
+        return {
+          ...data,
+          id: data.id || parseInt(doc.id), // Use the id from data, fallback to doc.id
+          docId: doc.id // Keep the actual Firestore document ID
+        };
+      }) as (Unit & { docId: string })[];
       
       units.sort((a, b) => a.order - b.order);
       setExistingUnits(units);
@@ -74,21 +77,18 @@ const AdminPage: React.FC = () => {
   const handleCreateUnit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    const newUnit: Omit<Unit, 'id'> = {
+    const newUnit = {
       title: unitTitle,
       description: unitDescription,
       order: unitOrder,
       lessons: [],
-      totalLessons: 0
+      totalLessons: 0,
+      id: unitOrder
     };
 
     try {
-      // Use the order as the document ID to make it a number
-      const docRef = doc(db, 'units', unitOrder.toString());
-      await updateDoc(docRef, newUnit).catch(async () => {
-        // If document doesn't exist, create it
-        await setDoc(docRef, { ...newUnit, id: unitOrder });
-      });
+      // Create a new document with auto-generated ID, but store the unit order as the id field
+      await addDoc(collection(db, 'units'), newUnit);
 
       alert('Unit created successfully!');
 
@@ -112,7 +112,9 @@ const AdminPage: React.FC = () => {
       return;
     }
 
-    const selectedUnit = existingUnits.find(u => u.docId === selectedUnitId);
+    const selectedUnit = (existingUnits as (Unit & { docId: string })[]).find(
+      u => u.docId === selectedUnitId
+    );
     if (!selectedUnit) {
       alert('Selected unit not found');
       return;
