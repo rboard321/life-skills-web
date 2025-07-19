@@ -101,20 +101,6 @@ const Dashboard: React.FC = () => {
         <h2 className="text-xl font-semibold mb-4">Quick Actions</h2>
         <div className="flex flex-wrap gap-4">
           <Link
-            to="/units"
-            className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg font-medium transition-colors flex items-center"
-          >
-            📚 Browse All Units
-          </Link>
-          {inProgressUnits > 0 && (
-            <Link
-              to="/units"
-              className="bg-yellow-600 hover:bg-yellow-700 text-white px-6 py-3 rounded-lg font-medium transition-colors flex items-center"
-            >
-              ⏳ Continue Learning
-            </Link>
-          )}
-          <Link
             to="/admin"
             className="bg-gray-600 hover:bg-gray-700 text-white px-6 py-3 rounded-lg font-medium transition-colors flex items-center"
           >
@@ -123,16 +109,10 @@ const Dashboard: React.FC = () => {
         </div>
       </div>
 
-      {/* Recent Units */}
+      {/* Units Grid */}
       <div className="bg-white rounded-lg shadow-md p-6">
         <div className="flex justify-between items-center mb-6">
-          <h2 className="text-xl font-semibold">Your Units</h2>
-          <Link 
-            to="/units" 
-            className="text-blue-600 hover:text-blue-800 text-sm font-medium"
-          >
-            View All →
-          </Link>
+          <h2 className="text-xl font-semibold">Your Learning Units</h2>
         </div>
 
         {units.length === 0 ? (
@@ -147,56 +127,101 @@ const Dashboard: React.FC = () => {
             </Link>
           </div>
         ) : (
-          <div className="space-y-4">
-            {units.slice(0, 5).map((unit) => {
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {units.map((unit) => {
               const progress = getUnitProgress(unit.id);
               const lessonsCompleted = progress?.overallProgress.lessonsCompleted || 0;
-              const totalLessons = unit.totalLessons ?? (unit.lessons ? unit.lessons.length : 0);
+              const totalLessons = unit.totalLessons || 0;
               const isCompleted = progress?.completedAt;
               const isStarted = lessonsCompleted > 0;
+              const progressPercentage = totalLessons > 0 ? (lessonsCompleted / totalLessons) * 100 : 0;
 
               return (
                 <div
                   key={unit.id}
-                  className="flex items-center justify-between p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+                  className={`bg-white border-2 rounded-lg shadow-sm hover:shadow-md transition-shadow p-6 ${
+                    isCompleted ? 'border-green-300 bg-green-50' : isStarted ? 'border-blue-300 bg-blue-50' : 'border-gray-200'
+                  }`}
                 >
-                  <div className="flex-1">
-                    <h3 className="font-medium text-gray-900 mb-1">{unit.title}</h3>
-                    <div className="flex items-center space-x-4 text-sm text-gray-600">
-                      <span>
-                        Lessons: {lessonsCompleted}/{totalLessons}
+                  {/* Unit Header */}
+                  <div className="flex items-start justify-between mb-4">
+                    <h3 className="text-lg font-semibold text-gray-900">{unit.title}</h3>
+                    {isCompleted && (
+                      <span className="text-green-500 text-xl">✓</span>
+                    )}
+                  </div>
+
+                  {/* Unit Description */}
+                  {unit.description && (
+                    <p className="text-gray-600 text-sm mb-4 line-clamp-2">{unit.description}</p>
+                  )}
+
+                  {/* Progress Information */}
+                  <div className="space-y-3 mb-6">
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-gray-600">Lessons:</span>
+                      <span className="text-blue-600 font-medium">
+                        {lessonsCompleted}/{totalLessons}
                       </span>
-                      <span className={`px-2 py-1 rounded text-xs font-medium ${
+                    </div>
+
+                    {/* Progress bar */}
+                    <div className="w-full bg-gray-200 rounded-full h-2">
+                      <div
+                        className={`h-2 rounded-full transition-all duration-300 ${
+                          isCompleted ? 'bg-green-500' : 'bg-blue-500'
+                        }`}
+                        style={{ width: `${progressPercentage}%` }}
+                      />
+                    </div>
+
+                    {/* Status badge */}
+                    <div className="text-center">
+                      <span className={`inline-block px-3 py-1 rounded-full text-xs font-medium ${
                         isCompleted ? 
                           'bg-green-100 text-green-800' :
                           isStarted ?
                             'bg-yellow-100 text-yellow-800' :
                             'bg-gray-100 text-gray-600'
                       }`}>
-                        {isCompleted ? 'Complete' : isStarted ? 'In Progress' : 'Not Started'}
+                        {isCompleted ? 
+                          '🎉 Complete' :
+                          isStarted ?
+                            '⏳ In Progress' :
+                            '📚 Not Started'
+                        }
                       </span>
                     </div>
                   </div>
+
+                  {/* Action Button */}
                   <Link
                     to={`/unit/${unit.id}`}
-                    className="text-blue-600 hover:text-blue-800 font-medium px-4 py-2"
+                    className={`block w-full text-center py-3 px-4 rounded-md font-medium transition-colors ${
+                      isCompleted ?
+                        'bg-green-600 hover:bg-green-700 text-white' :
+                        isStarted ?
+                          'bg-blue-600 hover:bg-blue-700 text-white' :
+                          'bg-gray-800 hover:bg-gray-900 text-white'
+                    }`}
                   >
-                    {isCompleted ? 'Review' : isStarted ? 'Continue' : 'Start'} →
+                    {isCompleted ? 
+                      'Review Unit' :
+                      isStarted ?
+                        'Continue Learning' :
+                        'Start Unit'
+                    }
                   </Link>
+
+                  {/* Completion date */}
+                  {isCompleted && progress?.completedAt && (
+                    <p className="text-xs text-gray-500 text-center mt-2">
+                      Completed on {progress.completedAt.toLocaleDateString()}
+                    </p>
+                  )}
                 </div>
               );
             })}
-            
-            {units.length > 5 && (
-              <div className="text-center pt-4">
-                <Link
-                  to="/units"
-                  className="text-blue-600 hover:text-blue-800 font-medium"
-                >
-                  View {units.length - 5} more units →
-                </Link>
-              </div>
-            )}
           </div>
         )}
       </div>

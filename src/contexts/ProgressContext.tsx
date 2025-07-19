@@ -51,7 +51,12 @@ export const ProgressProvider: React.FC<{ children: React.ReactNode }> = ({ chil
           completedAt: data.completedAt?.toDate(),
           lastAccessedAt: data.lastAccessedAt?.toDate() || new Date(),
           lessonsProgress: Object.entries(data.lessonsProgress || {}).reduce((acc, [lessonId, lessonData]) => {
-            const ld = lessonData as any;
+            const ld = lessonData as {
+              startedAt?: { toDate: () => Date };
+              completedAt?: { toDate: () => Date };
+              lastAccessedAt?: { toDate: () => Date };
+              [key: string]: unknown;
+            };
             acc[parseInt(lessonId)] = {
               ...ld,
               startedAt: ld.startedAt?.toDate() || new Date(),

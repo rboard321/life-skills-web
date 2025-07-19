@@ -2,17 +2,17 @@ import React, { useState, useEffect } from 'react';
 import { db } from '../firebase';
 import {
   collection,
-  addDoc,
   getDocs,
   doc,
   updateDoc,
-  arrayUnion
+  arrayUnion,
+  setDoc
 } from 'firebase/firestore';
 import type { Unit, Lesson, Activity } from '../data/sampleUnits';
 
 const AdminPage: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'units' | 'lessons'>('units');
-  const [existingUnits, setExistingUnits] = useState<Unit[]>([]);
+  const [existingUnits, setExistingUnits] = useState<(Unit & { docId: string })[]>([]);
 
   // Unit creation state
   const [unitTitle, setUnitTitle] = useState('');
@@ -20,7 +20,7 @@ const AdminPage: React.FC = () => {
   const [unitOrder, setUnitOrder] = useState(1);
 
   // Lesson creation state
-  const [selectedUnitId, setSelectedUnitId] = useState<number | ''>('');
+  const [selectedUnitId, setSelectedUnitId] = useState<string>('');
   const [lessonTitle, setLessonTitle] = useState('');
   const [lessonDescription, setLessonDescription] = useState('');
   const [lessonVideoUrl, setLessonVideoUrl] = useState('');
@@ -37,11 +37,17 @@ const AdminPage: React.FC = () => {
     try {
       const querySnapshot = await getDocs(collection(db, 'units'));
       const units = querySnapshot.docs.map(doc => ({
-        ...(doc.data() as object),
-        id: doc.id
-      })) as unknown as Unit[];
+        ...(doc.data() as Omit<Unit, 'id'>),
+        id: parseInt(doc.id) || doc.id, // Handle both string and number IDs
+        docId: doc.id // Keep the actual Firestore document ID
+      })) as (Unit & { docId: string })[];
+      
       units.sort((a, b) => a.order - b.order);
       setExistingUnits(units);
+      
+      // Set the next unit order
+      const maxOrder = units.length > 0 ? Math.max(...units.map(u => u.order)) : 0;
+      setUnitOrder(maxOrder + 1);
     } catch (error) {
       console.error('Error loading units:', error);
     }
@@ -77,13 +83,18 @@ const AdminPage: React.FC = () => {
     };
 
     try {
-      await addDoc(collection(db, 'units'), newUnit);
+      // Use the order as the document ID to make it a number
+      const docRef = doc(db, 'units', unitOrder.toString());
+      await updateDoc(docRef, newUnit).catch(async () => {
+        // If document doesn't exist, create it
+        await setDoc(docRef, { ...newUnit, id: unitOrder });
+      });
+
       alert('Unit created successfully!');
 
       // Reset form
       setUnitTitle('');
       setUnitDescription('');
-      setUnitOrder(existingUnits.length + 1);
 
       // Reload units
       await loadUnits();
@@ -101,7 +112,7 @@ const AdminPage: React.FC = () => {
       return;
     }
 
-    const selectedUnit = existingUnits.find(u => u.id === selectedUnitId);
+    const selectedUnit = existingUnits.find(u => u.docId === selectedUnitId);
     if (!selectedUnit) {
       alert('Selected unit not found');
       return;
@@ -121,8 +132,8 @@ const AdminPage: React.FC = () => {
     };
 
     try {
-      // Find the unit document
-      const unitDoc = doc(db, 'units', selectedUnitId.toString());
+      // Use the docId for the Firestore reference
+      const unitDoc = doc(db, 'units', selectedUnitId);
 
       // Update the unit with the new lesson
       await updateDoc(unitDoc, {
@@ -276,7 +287,7 @@ const AdminPage: React.FC = () => {
                       value={selectedUnitId}
                       onChange={e =>
                         setSelectedUnitId(
-                          e.target.value ? parseInt(e.target.value) : ''
+                          e.target.value ? e.target.value : ''
                         )
                       }
                       required
@@ -284,7 +295,7 @@ const AdminPage: React.FC = () => {
                     >
                       <option value="">-- Select a Unit --</option>
                       {existingUnits.map(unit => (
-                        <option key={unit.id} value={unit.id}>
+                        <option key={unit.docId} value={unit.docId}>
                           {unit.title} ({unit.totalLessons} lessons)
                         </option>
                       ))}
