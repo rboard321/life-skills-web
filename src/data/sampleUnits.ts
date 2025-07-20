@@ -11,6 +11,7 @@ export type Lesson = {
   title: string;
   description?: string;
   videoUrl: string;
+  captionsUrl?: string;
   order: number;
   activities: Activity[];
 };
@@ -63,6 +64,7 @@ export const sampleUnits: Unit[] = [
         title: 'Lesson 1',
         order: 1,
         videoUrl: 'https://www.youtube.com/embed/kInkncJ1fc',
+        captionsUrl: '/captions/lesson1.vtt',
         activities: [
           {
             id: 1,
