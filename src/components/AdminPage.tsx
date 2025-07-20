@@ -45,6 +45,7 @@ const AdminPage: React.FC = () => {
   const [editLessonTitle, setEditLessonTitle] = useState('');
   const [editLessonDescription, setEditLessonDescription] = useState('');
   const [editLessonVideoUrl, setEditLessonVideoUrl] = useState('');
+  const [editActivities, setEditActivities] = useState<Activity[]>([]);
 
   // Load existing units on component mount
   useEffect(() => {
@@ -90,6 +91,27 @@ const AdminPage: React.FC = () => {
 
   const removeActivity = (index: number) => {
     setActivities(activities.filter((_, i) => i !== index));
+  };
+
+  const handleEditActivityChange = (
+    index: number,
+    field: keyof Omit<Activity, 'id'>,
+    value: string
+  ) => {
+    const updated = [...editActivities];
+    updated[index] = { ...updated[index], [field]: value } as Activity;
+    setEditActivities(updated);
+  };
+
+  const addEditActivity = () => {
+    setEditActivities([
+      ...editActivities,
+      { id: editActivities.length + 1, type: 'h5p', url: '', title: '' }
+    ]);
+  };
+
+  const removeEditActivity = (index: number) => {
+    setEditActivities(editActivities.filter((_, i) => i !== index));
   };
 
   const handleCreateUnit = async (e: React.FormEvent) => {
@@ -221,6 +243,7 @@ const AdminPage: React.FC = () => {
     setEditLessonTitle(lesson.title);
     setEditLessonDescription(lesson.description || '');
     setEditLessonVideoUrl(lesson.videoUrl);
+    setEditActivities(lesson.activities || []);
   };
 
   const handleUpdateLesson = async (e: React.FormEvent) => {
@@ -237,11 +260,16 @@ const AdminPage: React.FC = () => {
           ...lessons[index],
           title: editLessonTitle,
           description: editLessonDescription,
-          videoUrl: editLessonVideoUrl
+          videoUrl: editLessonVideoUrl,
+          activities: editActivities.map((act, idx) => ({
+            ...act,
+            id: idx + 1
+          }))
         };
         await updateDoc(unitDocRef, { lessons });
         await loadUnits();
         setEditingLesson(null);
+        setEditActivities([]);
       }
     } catch (error) {
       console.error('Error updating lesson:', error);
@@ -649,11 +677,71 @@ const AdminPage: React.FC = () => {
                                     placeholder="Video URL"
                                     required
                                   />
+                                  <div>
+                                    <div className="flex justify-between items-center mb-2">
+                                      <label className="block text-sm font-medium text-gray-700">
+                                        Activities ({editActivities.length}):
+                                      </label>
+                                      <button
+                                        type="button"
+                                        onClick={addEditActivity}
+                                        className="text-blue-600 hover:underline text-sm"
+                                      >
+                                        + Add Activity
+                                      </button>
+                                    </div>
+                                    {editActivities.map((activity, index) => (
+                                      <div key={index} className="bg-gray-50 p-3 rounded border mb-2">
+                                        <div className="grid grid-cols-1 md:grid-cols-4 gap-2">
+                                          <input
+                                            type="text"
+                                            placeholder="Activity Title"
+                                            value={activity.title}
+                                            onChange={e => handleEditActivityChange(index, 'title', e.target.value)}
+                                            required
+                                            className="p-2 border border-gray-300 rounded"
+                                          />
+                                          <select
+                                            value={activity.type}
+                                            onChange={e => handleEditActivityChange(index, 'type', e.target.value)}
+                                            className="p-2 border border-gray-300 rounded"
+                                          >
+                                            <option value="h5p">H5P</option>
+                                            <option value="wordwall">Wordwall</option>
+                                          </select>
+                                          <input
+                                            type="url"
+                                            placeholder="Activity URL"
+                                            value={activity.url}
+                                            onChange={e => handleEditActivityChange(index, 'url', e.target.value)}
+                                            required
+                                            className="p-2 border border-gray-300 rounded"
+                                          />
+                                          {editActivities.length > 1 && (
+                                            <button
+                                              type="button"
+                                              onClick={() => removeEditActivity(index)}
+                                              className="bg-red-500 text-white px-3 py-2 rounded hover:bg-red-600"
+                                            >
+                                              Remove
+                                            </button>
+                                          )}
+                                        </div>
+                                      </div>
+                                    ))}
+                                  </div>
                                   <div className="flex space-x-2">
                                     <button type="submit" className="bg-green-600 text-white px-3 py-1 rounded">
                                       Save
                                     </button>
-                                    <button type="button" onClick={() => setEditingLesson(null)} className="bg-gray-300 px-3 py-1 rounded">
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setEditingLesson(null);
+                                        setEditActivities([]);
+                                      }}
+                                      className="bg-gray-300 px-3 py-1 rounded"
+                                    >
                                       Cancel
                                     </button>
                                   </div>
