@@ -4,14 +4,16 @@ import {
   collection,
   addDoc,
   getDocs,
+  getDoc,
   doc,
   updateDoc,
+  deleteDoc,
   arrayUnion
 } from 'firebase/firestore';
 import type { Unit, Lesson, Activity } from '../data/sampleUnits';
 
 const AdminPage: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<'units' | 'lessons'>('units');
+  const [activeTab, setActiveTab] = useState<'units' | 'lessons' | 'manage'>('units');
   const [existingUnits, setExistingUnits] = useState<(Unit & { docId: string })[]>([]);
 
   // Unit creation state
@@ -27,6 +29,22 @@ const AdminPage: React.FC = () => {
   const [activities, setActivities] = useState<Omit<Activity, 'id'>[]>([
     { type: 'h5p', url: '', title: '' }
   ]);
+
+  // Editing state
+  const [editingUnitId, setEditingUnitId] = useState<string | null>(null);
+  const [editUnitTitle, setEditUnitTitle] = useState('');
+  const [editUnitDescription, setEditUnitDescription] = useState('');
+  const [editUnitOrder, setEditUnitOrder] = useState(1);
+
+  const [expandedUnitId, setExpandedUnitId] = useState<string | null>(null);
+
+  const [editingLesson, setEditingLesson] = useState<{
+    unitDocId: string;
+    index: number;
+  } | null>(null);
+  const [editLessonTitle, setEditLessonTitle] = useState('');
+  const [editLessonDescription, setEditLessonDescription] = useState('');
+  const [editLessonVideoUrl, setEditLessonVideoUrl] = useState('');
 
   // Load existing units on component mount
   useEffect(() => {
@@ -158,6 +176,104 @@ const AdminPage: React.FC = () => {
     }
   };
 
+  const startEditUnit = (unit: Unit & { docId: string }) => {
+    setEditingUnitId(unit.docId);
+    setEditUnitTitle(unit.title);
+    setEditUnitDescription(unit.description || '');
+    setEditUnitOrder(unit.order);
+  };
+
+  const handleUpdateUnit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingUnitId) return;
+    try {
+      const unitDocRef = doc(db, 'units', editingUnitId);
+      await updateDoc(unitDocRef, {
+        title: editUnitTitle,
+        description: editUnitDescription,
+        order: editUnitOrder
+      });
+      await loadUnits();
+      setEditingUnitId(null);
+    } catch (error) {
+      console.error('Error updating unit:', error);
+      alert('Failed to update unit.');
+    }
+  };
+
+  const handleDeleteUnit = async (docId: string) => {
+    if (!confirm('Delete this unit and all lessons?')) return;
+    try {
+      await deleteDoc(doc(db, 'units', docId));
+      await loadUnits();
+    } catch (error) {
+      console.error('Error deleting unit:', error);
+      alert('Failed to delete unit.');
+    }
+  };
+
+  const toggleLessons = (docId: string) => {
+    setExpandedUnitId(prev => (prev === docId ? null : docId));
+  };
+
+  const startEditLesson = (unitDocId: string, index: number, lesson: Lesson) => {
+    setEditingLesson({ unitDocId, index });
+    setEditLessonTitle(lesson.title);
+    setEditLessonDescription(lesson.description || '');
+    setEditLessonVideoUrl(lesson.videoUrl);
+  };
+
+  const handleUpdateLesson = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingLesson) return;
+    const { unitDocId, index } = editingLesson;
+    try {
+      const unitDocRef = doc(db, 'units', unitDocId);
+      const unitSnap = await getDoc(unitDocRef);
+      if (unitSnap.exists()) {
+        const unitData = unitSnap.data() as Unit;
+        const lessons = unitData.lessons || [];
+        lessons[index] = {
+          ...lessons[index],
+          title: editLessonTitle,
+          description: editLessonDescription,
+          videoUrl: editLessonVideoUrl
+        };
+        await updateDoc(unitDocRef, { lessons });
+        await loadUnits();
+        setEditingLesson(null);
+      }
+    } catch (error) {
+      console.error('Error updating lesson:', error);
+      alert('Failed to update lesson.');
+    }
+  };
+
+  const handleDeleteLesson = async (unitDocId: string, index: number) => {
+    if (!confirm('Delete this lesson?')) return;
+    try {
+      const unitDocRef = doc(db, 'units', unitDocId);
+      const unitSnap = await getDoc(unitDocRef);
+      if (unitSnap.exists()) {
+        const unitData = unitSnap.data() as Unit;
+        let lessons = unitData.lessons || [];
+        lessons = lessons.filter((_, i) => i !== index).map((l, idx) => ({
+          ...l,
+          id: idx + 1,
+          order: idx + 1
+        }));
+        await updateDoc(unitDocRef, {
+          lessons,
+          totalLessons: lessons.length
+        });
+        await loadUnits();
+      }
+    } catch (error) {
+      console.error('Error deleting lesson:', error);
+      alert('Failed to delete lesson.');
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gray-100 p-4">
       <div className="max-w-4xl mx-auto bg-white shadow-md rounded-lg">
@@ -182,6 +298,16 @@ const AdminPage: React.FC = () => {
             }`}
           >
             Add Lessons
+          </button>
+          <button
+            onClick={() => setActiveTab('manage')}
+            className={`flex-1 py-4 px-6 text-center font-medium ${
+              activeTab === 'manage'
+                ? 'border-b-2 border-blue-600 text-blue-600 bg-blue-50'
+                : 'text-gray-600 hover:text-gray-800'
+            }`}
+          >
+            Manage Units
           </button>
         </div>
 
@@ -416,6 +542,150 @@ const AdminPage: React.FC = () => {
                     Add Lesson
                   </button>
                 </form>
+              )}
+            </div>
+          )}
+
+          {activeTab === 'manage' && (
+            <div>
+              <h2 className="text-2xl font-bold text-blue-600 mb-6">
+                Manage Units and Lessons
+              </h2>
+
+              {existingUnits.length === 0 ? (
+                <div className="text-center p-8 bg-yellow-50 rounded-lg">
+                  <p className="text-yellow-800">No units available.</p>
+                </div>
+              ) : (
+                <div className="space-y-6">
+                  {existingUnits.map(unit => (
+                    <div key={unit.docId} className="border rounded p-4">
+                      {editingUnitId === unit.docId ? (
+                        <form onSubmit={handleUpdateUnit} className="space-y-2">
+                          <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+                            <input
+                              type="text"
+                              value={editUnitTitle}
+                              onChange={e => setEditUnitTitle(e.target.value)}
+                              className="p-2 border rounded"
+                              placeholder="Unit title"
+                              required
+                            />
+                            <input
+                              type="number"
+                              value={editUnitOrder}
+                              onChange={e => setEditUnitOrder(parseInt(e.target.value))}
+                              className="p-2 border rounded"
+                              min="1"
+                              required
+                            />
+                            <input
+                              type="text"
+                              value={editUnitDescription}
+                              onChange={e => setEditUnitDescription(e.target.value)}
+                              className="p-2 border rounded"
+                              placeholder="Description"
+                            />
+                          </div>
+                          <div className="flex space-x-2">
+                            <button type="submit" className="bg-green-600 text-white px-3 py-1 rounded">
+                              Save
+                            </button>
+                            <button type="button" onClick={() => setEditingUnitId(null)} className="bg-gray-300 px-3 py-1 rounded">
+                              Cancel
+                            </button>
+                          </div>
+                        </form>
+                      ) : (
+                        <div className="flex justify-between items-start">
+                          <div>
+                            <h3 className="font-semibold">
+                              {unit.title} (order {unit.order})
+                            </h3>
+                            {unit.description && (
+                              <p className="text-sm text-gray-600">{unit.description}</p>
+                            )}
+                          </div>
+                          <div className="space-x-2">
+                            <button onClick={() => startEditUnit(unit)} className="text-blue-600 text-sm">
+                              Edit
+                            </button>
+                            <button onClick={() => handleDeleteUnit(unit.docId)} className="text-red-600 text-sm">
+                              Delete
+                            </button>
+                            <button onClick={() => toggleLessons(unit.docId)} className="text-sm">
+                              {expandedUnitId === unit.docId ? 'Hide Lessons' : 'Show Lessons'}
+                            </button>
+                          </div>
+                        </div>
+                      )}
+
+                      {expandedUnitId === unit.docId && unit.lessons && (
+                        <div className="mt-4 space-y-4">
+                          {unit.lessons.map((lesson, idx) => (
+                            <div key={lesson.id} className="border rounded p-3">
+                              {editingLesson && editingLesson.unitDocId === unit.docId && editingLesson.index === idx ? (
+                                <form onSubmit={handleUpdateLesson} className="space-y-2">
+                                  <input
+                                    type="text"
+                                    value={editLessonTitle}
+                                    onChange={e => setEditLessonTitle(e.target.value)}
+                                    className="w-full p-2 border rounded"
+                                    placeholder="Lesson title"
+                                    required
+                                  />
+                                  <input
+                                    type="text"
+                                    value={editLessonDescription}
+                                    onChange={e => setEditLessonDescription(e.target.value)}
+                                    className="w-full p-2 border rounded"
+                                    placeholder="Lesson description"
+                                  />
+                                  <input
+                                    type="url"
+                                    value={editLessonVideoUrl}
+                                    onChange={e => setEditLessonVideoUrl(e.target.value)}
+                                    className="w-full p-2 border rounded"
+                                    placeholder="Video URL"
+                                    required
+                                  />
+                                  <div className="flex space-x-2">
+                                    <button type="submit" className="bg-green-600 text-white px-3 py-1 rounded">
+                                      Save
+                                    </button>
+                                    <button type="button" onClick={() => setEditingLesson(null)} className="bg-gray-300 px-3 py-1 rounded">
+                                      Cancel
+                                    </button>
+                                  </div>
+                                </form>
+                              ) : (
+                                <div className="flex justify-between items-start">
+                                  <div>
+                                    <h4 className="font-medium">{lesson.title}</h4>
+                                    {lesson.description && (
+                                      <p className="text-sm text-gray-600">{lesson.description}</p>
+                                    )}
+                                  </div>
+                                  <div className="space-x-2 text-sm">
+                                    <button onClick={() => startEditLesson(unit.docId, idx, lesson)} className="text-blue-600">
+                                      Edit
+                                    </button>
+                                    <button onClick={() => handleDeleteLesson(unit.docId, idx)} className="text-red-600">
+                                      Delete
+                                    </button>
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          ))}
+                          {unit.lessons.length === 0 && (
+                            <p className="text-sm text-gray-600">No lessons in this unit.</p>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
               )}
             </div>
           )}
