@@ -87,7 +87,13 @@ const LessonPage: React.FC = () => {
 
       <div className="mb-8">
         <h2 className="text-xl font-semibold mb-4">Watch the Video</h2>
-        <VideoPlayer url={lesson.videoUrl} unitId={unit.id} lessonId={lesson.id} onCompleted={() => setVideoCompleted(true)} />
+        <VideoPlayer
+          url={lesson.videoUrl}
+          captionsUrl={lesson.captionsUrl}
+          unitId={unit.id}
+          lessonId={lesson.id}
+          onCompleted={() => setVideoCompleted(true)}
+        />
       </div>
 
       <div className="mb-8">
