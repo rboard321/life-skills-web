@@ -64,7 +64,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
             <Route
               path="/admin"
               element={
-                <ProtectedRoute>
+                <ProtectedRoute requiresAdmin>
                   <AdminPage />
                 </ProtectedRoute>
               }

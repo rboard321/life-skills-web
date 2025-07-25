@@ -8,12 +8,14 @@ import {
   doc,
   updateDoc,
   deleteDoc,
-  arrayUnion
+  arrayUnion,
+  query,
+  where
 } from 'firebase/firestore';
 import type { Unit, Lesson, Activity } from '../data/sampleUnits';
 
 const AdminPage: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<'units' | 'lessons' | 'manage'>('units');
+  const [activeTab, setActiveTab] = useState<'units' | 'lessons' | 'manage' | 'progress'>('units');
   const [existingUnits, setExistingUnits] = useState<(Unit & { docId: string })[]>([]);
 
   // Unit creation state
@@ -47,9 +49,21 @@ const AdminPage: React.FC = () => {
   const [editLessonVideoUrl, setEditLessonVideoUrl] = useState('');
   const [editActivities, setEditActivities] = useState<Activity[]>([]);
 
+  // Student progress state
+  const [studentProgress, setStudentProgress] = useState<{
+    uid: string;
+    displayName: string;
+    email: string;
+    role: string;
+    unitsCompleted: number;
+    percentComplete: number;
+  }[]>([]);
+  const [loadingProgress, setLoadingProgress] = useState(false);
+
   // Load existing units on component mount
   useEffect(() => {
     loadUnits();
+    loadStudentProgress();
   }, []);
 
   const loadUnits = async () => {
@@ -72,6 +86,52 @@ const AdminPage: React.FC = () => {
       setUnitOrder(maxOrder + 1);
     } catch (error) {
       console.error('Error loading units:', error);
+    }
+  };
+
+  const loadStudentProgress = async () => {
+    try {
+      setLoadingProgress(true);
+      const usersSnap = await getDocs(collection(db, 'users'));
+      const unitsSnap = await getDocs(collection(db, 'units'));
+      const totalUnits = unitsSnap.docs.length;
+
+      const data = await Promise.all(
+        usersSnap.docs.map(async (u) => {
+          const userData = u.data() as { displayName?: string; email: string; role: string };
+          const progressQuery = query(
+            collection(db, 'userProgress'),
+            where('userId', '==', u.id)
+          );
+          const progressSnap = await getDocs(progressQuery);
+          const progressDocs = progressSnap.docs.map(d =>
+            d.data() as {
+              completedAt?: unknown;
+              overallProgress?: { percentComplete?: number };
+            }
+          );
+          const unitsCompleted = progressDocs.filter(p => p.completedAt).length;
+          const percentSum = progressDocs.reduce(
+            (acc, p) => acc + (p.overallProgress?.percentComplete || 0),
+            0
+          );
+          const percentComplete = totalUnits > 0 ? Math.round(percentSum / totalUnits) : 0;
+
+          return {
+            uid: u.id,
+            displayName: userData.displayName || '',
+            email: userData.email,
+            role: userData.role,
+            unitsCompleted,
+            percentComplete
+          };
+        })
+      );
+      setStudentProgress(data);
+    } catch (err) {
+      console.error('Failed to load progress', err);
+    } finally {
+      setLoadingProgress(false);
     }
   };
 
@@ -337,6 +397,16 @@ const AdminPage: React.FC = () => {
           >
             Manage Units
           </button>
+          <button
+            onClick={() => setActiveTab('progress')}
+            className={`flex-1 py-4 px-6 text-center font-medium ${
+              activeTab === 'progress'
+                ? 'border-b-2 border-blue-600 text-blue-600 bg-blue-50'
+                : 'text-gray-600 hover:text-gray-800'
+            }`}
+          >
+            Student Progress
+          </button>
         </div>
 
         <div className="p-6">
@@ -419,6 +489,39 @@ const AdminPage: React.FC = () => {
             </div>
           )}
 
+          {activeTab === 'progress' && (
+            <div>
+              <h2 className="text-2xl font-bold text-blue-600 mb-6">Student Progress</h2>
+              {loadingProgress ? (
+                <p>Loading...</p>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="min-w-full divide-y divide-gray-200">
+                    <thead className="bg-gray-50">
+                      <tr>
+                        <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Name</th>
+                        <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Email</th>
+                        <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Role</th>
+                        <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Units Completed</th>
+                        <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Overall %</th>
+                      </tr>
+                    </thead>
+                    <tbody className="bg-white divide-y divide-gray-200">
+                      {studentProgress.map((s) => (
+                        <tr key={s.uid}>
+                          <td className="px-4 py-2 whitespace-nowrap text-sm text-gray-900">{s.displayName || '-'}</td>
+                          <td className="px-4 py-2 whitespace-nowrap text-sm text-gray-500">{s.email}</td>
+                          <td className="px-4 py-2 whitespace-nowrap text-sm text-gray-500">{s.role}</td>
+                          <td className="px-4 py-2 whitespace-nowrap text-sm text-gray-500">{s.unitsCompleted}</td>
+                          <td className="px-4 py-2 whitespace-nowrap text-sm text-gray-500">{s.percentComplete}%</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          )}
           {activeTab === 'lessons' && (
             <div>
               <h2 className="text-2xl font-bold text-blue-600 mb-6">
