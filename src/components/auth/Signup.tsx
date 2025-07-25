@@ -8,6 +8,7 @@ const Signup: React.FC = () => {
     email: '',
     password: '',
     confirmPassword: '',
+    role: 'student',
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -22,7 +23,13 @@ const Signup: React.FC = () => {
   };
 
   const validateForm = () => {
-    if (!formData.name || !formData.email || !formData.password || !formData.confirmPassword) {
+    if (
+      !formData.name ||
+      !formData.email ||
+      !formData.password ||
+      !formData.confirmPassword ||
+      !formData.role
+    ) {
       setError('Please fill in all fields');
       return false;
     }
@@ -48,7 +55,12 @@ const Signup: React.FC = () => {
     try {
       setError('');
       setLoading(true);
-      await signup(formData.email, formData.password, formData.name);
+      await signup(
+        formData.email,
+        formData.password,
+        formData.name,
+        formData.role
+      );
       navigate('/');
     } catch (error: unknown) {
       let errorMessage = 'Failed to create account';
@@ -154,6 +166,34 @@ const Signup: React.FC = () => {
                 className="mt-1 appearance-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm"
                 placeholder="Confirm your password"
               />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Role</label>
+              <div className="flex space-x-4">
+                <label className="flex items-center space-x-1">
+                  <input
+                    type="radio"
+                    name="role"
+                    value="student"
+                    checked={formData.role === 'student'}
+                    onChange={handleChange}
+                    className="form-radio"
+                  />
+                  <span className="text-sm">Student</span>
+                </label>
+                <label className="flex items-center space-x-1">
+                  <input
+                    type="radio"
+                    name="role"
+                    value="teacher"
+                    checked={formData.role === 'teacher'}
+                    onChange={handleChange}
+                    className="form-radio"
+                  />
+                  <span className="text-sm">Teacher</span>
+                </label>
+              </div>
             </div>
           </div>
 

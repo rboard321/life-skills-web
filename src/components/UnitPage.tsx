@@ -136,7 +136,11 @@ const UnitPage: React.FC = () => {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {unit.lessons
               .sort((a, b) => a.order - b.order)
-              .map((lesson) => {
+              .map((lesson, idx, arr) => {
+                const prevCompleted =
+                  idx === 0 ||
+                  unitProgress?.lessonsProgress[arr[idx - 1].id]?.completedAt;
+                const isLocked = !prevCompleted;
                 const lessonProgress = unitProgress?.lessonsProgress[lesson.id];
                 const isCompleted = lessonProgress?.completedAt;
                 const isStarted = lessonProgress?.videoCompleted || (lessonProgress?.activitiesCompleted.length || 0) > 0;
@@ -163,12 +167,16 @@ const UnitPage: React.FC = () => {
                       </div>
                       
                       {/* Completion Badge */}
-                      {isCompleted && (
-                        <div className="absolute top-2 right-2 bg-green-500 text-white rounded-full p-2">
-                          <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-                            <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                          </svg>
-                        </div>
+                      {isLocked ? (
+                        <div className="absolute top-2 right-2 bg-gray-400 text-white rounded-full p-2">🔒</div>
+                      ) : (
+                        isCompleted && (
+                          <div className="absolute top-2 right-2 bg-green-500 text-white rounded-full p-2">
+                            <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                              <path fillRule="evenodd" d="M16.707 5.293a1 1 0 011.414 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                            </svg>
+                          </div>
+                        )
                       )}
                     </div>
 
@@ -214,29 +222,47 @@ const UnitPage: React.FC = () => {
 
                         {/* Status */}
                         <div className="text-center">
-                          <span className={`inline-block px-3 py-1 rounded-full text-xs font-medium ${
-                            isCompleted ? 'bg-green-100 text-green-800' : 
-                            isStarted ? 'bg-yellow-100 text-yellow-800' : 
-                            'bg-gray-100 text-gray-600'
-                          }`}>
-                            {isCompleted ? '🎉 Complete' : isStarted ? '⏳ In Progress' : '📚 Not Started'}
+                          <span
+                            className={`inline-block px-3 py-1 rounded-full text-xs font-medium ${
+                              isLocked
+                                ? 'bg-gray-100 text-gray-600'
+                                : isCompleted
+                                  ? 'bg-green-100 text-green-800'
+                                  : isStarted
+                                    ? 'bg-yellow-100 text-yellow-800'
+                                    : 'bg-gray-100 text-gray-600'
+                            }`}
+                          >
+                            {isLocked
+                              ? '🔒 Locked'
+                              : isCompleted
+                                ? '🎉 Complete'
+                                : isStarted
+                                  ? '⏳ In Progress'
+                                  : '📚 Not Started'}
                           </span>
                         </div>
                       </div>
 
                       {/* Action Button */}
-                      <Link
-                        to={`/unit/${unit.id}/lesson/${lesson.id}`}
-                        className={`block w-full text-center py-3 px-4 rounded-lg font-medium transition-colors ${
-                          isCompleted ? 
-                            'bg-green-600 hover:bg-green-700 text-white' : 
-                            isStarted ? 
-                              'bg-blue-600 hover:bg-blue-700 text-white' : 
-                              'bg-gray-800 hover:bg-gray-900 text-white'
-                        }`}
-                      >
-                        {isCompleted ? 'Review Lesson' : isStarted ? 'Continue Lesson' : 'Start Lesson'}
-                      </Link>
+                      {isLocked ? (
+                        <div className="block w-full text-center py-3 px-4 rounded-lg font-medium bg-gray-300 text-gray-500 cursor-not-allowed">
+                          Locked
+                        </div>
+                      ) : (
+                        <Link
+                          to={`/unit/${unit.id}/lesson/${lesson.id}`}
+                          className={`block w-full text-center py-3 px-4 rounded-lg font-medium transition-colors ${
+                            isCompleted
+                              ? 'bg-green-600 hover:bg-green-700 text-white'
+                              : isStarted
+                                ? 'bg-blue-600 hover:bg-blue-700 text-white'
+                                : 'bg-gray-800 hover:bg-gray-900 text-white'
+                          }`}
+                        >
+                          {isCompleted ? 'Review Lesson' : isStarted ? 'Continue Lesson' : 'Start Lesson'}
+                        </Link>
+                      )}
 
                       {/* Completion Date */}
                       {isCompleted && lessonProgress?.completedAt && (

@@ -2,10 +2,12 @@ import React from 'react';
 import { Link } from 'react-router-dom';
 import { useUnits } from '../hooks/useUnits';
 import { useProgress } from '../contexts/ProgressContext';
+import { useAuth } from '../contexts/AuthContext';
 
 const Dashboard: React.FC = () => {
   const { units, loading, error } = useUnits();
   const { getUnitProgress } = useProgress();
+  const { isTeacher } = useAuth();
 
   if (loading) {
     return (
@@ -100,12 +102,14 @@ const Dashboard: React.FC = () => {
       <div className="bg-white rounded-lg shadow-md p-6 mb-8">
         <h2 className="text-xl font-semibold mb-4">Quick Actions</h2>
         <div className="flex flex-wrap gap-4">
-          <Link
-            to="/admin"
-            className="bg-gray-600 hover:bg-gray-700 text-white px-6 py-3 rounded-lg font-medium transition-colors flex items-center"
-          >
-            ⚙️ Admin Panel
-          </Link>
+          {isTeacher && (
+            <Link
+              to="/admin"
+              className="bg-gray-600 hover:bg-gray-700 text-white px-6 py-3 rounded-lg font-medium transition-colors flex items-center"
+            >
+              ⚙️ Admin Panel
+            </Link>
+          )}
         </div>
       </div>
 

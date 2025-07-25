@@ -10,12 +10,21 @@ import {
   sendPasswordResetEmail,
   updateProfile,
 } from 'firebase/auth';
-import { auth } from '../firebase';
+import { auth, db } from '../firebase';
+import { doc, getDoc, setDoc } from 'firebase/firestore';
 
 interface AuthContextType {
   currentUser: User | null;
   loading: boolean;
-  signup: (email: string, password: string, displayName: string) => Promise<void>;
+  role: string | null;
+  isTeacher: boolean;
+  isAdmin: boolean;
+  signup: (
+    email: string,
+    password: string,
+    displayName: string,
+    role: string
+  ) => Promise<void>;
   login: (email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
   resetPassword: (email: string) => Promise<void>;
@@ -34,11 +43,24 @@ export const useAuth = () => {
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const [role, setRole] = useState<string | null>(null);
 
-  const signup = async (email: string, password: string, displayName: string): Promise<void> => {
+  const signup = async (
+    email: string,
+    password: string,
+    displayName: string,
+    userRole: string
+  ): Promise<void> => {
     const userCredential = await createUserWithEmailAndPassword(auth, email, password);
     if (userCredential.user) {
       await updateProfile(userCredential.user, { displayName });
+      await setDoc(doc(db, 'users', userCredential.user.uid), {
+        uid: userCredential.user.uid,
+        displayName,
+        email,
+        role: userRole
+      });
+      setRole(userRole);
     }
   };
 
@@ -55,8 +77,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
       setCurrentUser(user);
+      if (user) {
+        try {
+          const userDoc = await getDoc(doc(db, 'users', user.uid));
+          const data = userDoc.data();
+          setRole((data?.role as string) || null);
+        } catch (err) {
+          console.error('Failed to fetch user role:', err);
+          setRole(null);
+        }
+      } else {
+        setRole(null);
+      }
       setLoading(false);
     });
 
@@ -66,6 +100,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const value: AuthContextType = {
     currentUser,
     loading,
+    role,
+    isTeacher: role === 'teacher',
+    isAdmin: role === 'teacher',
     signup,
     login,
     logout,

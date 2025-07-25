@@ -1,5 +1,6 @@
 import React, { useRef, useEffect, useState } from 'react';
 import ReactPlayer from 'react-player';
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 const Player = ReactPlayer as unknown as React.ComponentType<any>;
 import { useProgress } from '../contexts/ProgressContext';
 
@@ -19,6 +20,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
   onCompleted
 }) => {
   const { markLessonVideoCompleted, getUnitProgress } = useProgress();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const playerRef = useRef<any>(null);
   const [duration, setDuration] = useState(0);
   const [playedSeconds, setPlayedSeconds] = useState(0);
@@ -63,6 +65,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
     }
   }, [playedSeconds, isCompleted]);
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const handleProgress = (state: any) => {
     setPlayedSeconds(state.playedSeconds);
     if (duration > 0) {
@@ -111,13 +114,11 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
         src={url}
         controls
         onProgress={handleProgress}
-        // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
         onDurationChange={handleDuration}
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         config={
           (captionsUrl
             ? { file: { tracks: [{ kind: 'subtitles', src: captionsUrl, srcLang: 'en', default: true }] } }
-            : undefined) as any
+            : undefined) as unknown
         }
         width="100%"
         height="400px"
