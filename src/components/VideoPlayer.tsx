@@ -25,6 +25,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
   const [duration, setDuration] = useState(0);
   const [playedSeconds, setPlayedSeconds] = useState(0);
   const [isCompleted, setIsCompleted] = useState(false);
+  const [hasWatchedSignificantly, setHasWatchedSignificantly] = useState(false);
   const [transcript, setTranscript] = useState<string[]>([]);
 
   const unitProgress = getUnitProgress(unitId);
@@ -59,35 +60,32 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
     }
   }, [captionsUrl]);
 
-  useEffect(() => {
-    if (playedSeconds > 0 && playerRef.current && !isCompleted) {
-      playerRef.current.seekTo(playedSeconds, 'seconds');
-    }
-  }, [playedSeconds, isCompleted]);
-
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const handleProgress = (state: any) => {
     setPlayedSeconds(state.playedSeconds);
-    if (duration > 0) {
-      markLessonVideoCompleted(unitId, lessonId, state.playedSeconds, duration);
-      if (state.playedSeconds >= duration * 0.85 && !isCompleted) {
-        setIsCompleted(true);
-        onCompleted();
-      }
+
+    // Check if user has watched at least 30% of the video
+    if (duration > 0 && state.playedSeconds >= duration * 0.3) {
+      setHasWatchedSignificantly(true);
     }
   };
 
   const handleDuration = (d: number) => setDuration(d);
 
-  useEffect(() => {
-    return () => {
-      if (duration > 0) {
-        markLessonVideoCompleted(unitId, lessonId, playedSeconds, duration);
+  const handleMarkAsCompleted = async () => {
+    if (!isCompleted) {
+      try {
+        await markLessonVideoCompleted(unitId, lessonId, playedSeconds, duration);
+        setIsCompleted(true);
+        onCompleted();
+      } catch (error) {
+        console.error('Error marking video as completed:', error);
       }
-    };
-  }, [duration, playedSeconds, unitId, lessonId, markLessonVideoCompleted]);
+    }
+  };
 
   const progress = duration > 0 ? Math.min((playedSeconds / duration) * 100, 100) : 0;
+  const canMarkComplete = hasWatchedSignificantly || progress >= 30;
 
   const showResumeIndicator =
     !!lessonProgress?.videoWatchTime && lessonProgress.videoWatchTime > 30 && !isCompleted;
@@ -109,41 +107,96 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
         </div>
       )}
 
-      <Player
-        ref={playerRef}
-        src={url}
-        controls
-        onProgress={handleProgress}
-        onDurationChange={handleDuration}
-        config={
-          (captionsUrl
-            ? { file: { tracks: [{ kind: 'subtitles', src: captionsUrl, srcLang: 'en', default: true }] } }
-            : undefined) as unknown
-        }
-        width="100%"
-        height="400px"
-      />
+      <div className="relative">
+        <Player
+          ref={playerRef}
+          src={url}
+          controls
+          onProgress={handleProgress}
+          onDurationChange={handleDuration}
+          config={
+            (captionsUrl
+              ? { file: { tracks: [{ kind: 'subtitles', src: captionsUrl, srcLang: 'en', default: true }] } }
+              : undefined) as unknown
+          }
+          width="100%"
+          height="400px"
+        />
+        
+        {/* Completion overlay */}
+        {isCompleted && (
+          <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center rounded-lg">
+            <div className="bg-white p-6 rounded-lg text-center max-w-sm">
+              <div className="text-4xl mb-2">✅</div>
+              <h3 className="text-lg font-semibold text-green-800 mb-2">Video Completed!</h3>
+              <p className="text-sm text-gray-600">Activities are now unlocked below</p>
+            </div>
+          </div>
+        )}
+      </div>
 
+      {/* Progress Bar */}
       <div className="bg-gray-200 rounded-full h-3 overflow-hidden">
         <div
           className={`h-full transition-all duration-500 ${isCompleted ? 'bg-green-500' : 'bg-blue-500'}`}
           style={{ width: `${progress}%` }}
         />
       </div>
-      <div className="flex justify-between text-sm text-gray-600">
-        <span>Progress: {progress.toFixed(1)}%</span>
-        <span>
-          {isCompleted ? (
-            <span className="text-green-600 font-semibold">✓ Completed</span>
-          ) : (
-            `${Math.floor(playedSeconds / 60)}:${Math.floor(playedSeconds % 60)
-              .toString()
-              .padStart(2, '0')} watched`
+
+      {/* Progress Info and Controls */}
+      <div className="flex justify-between items-center">
+        <div className="text-sm text-gray-600">
+          <span>Progress: {progress.toFixed(1)}%</span>
+          {duration > 0 && (
+            <span className="ml-4">
+              {Math.floor(playedSeconds / 60)}:{Math.floor(playedSeconds % 60)
+                .toString()
+                .padStart(2, '0')} / {Math.floor(duration / 60)}:{Math.floor(duration % 60)
+                .toString()
+                .padStart(2, '0')}
+            </span>
           )}
-        </span>
+        </div>
+
+        <div className="flex items-center space-x-3">
+          {isCompleted ? (
+            <span className="text-green-600 font-semibold flex items-center">
+              <svg className="w-5 h-5 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+              </svg>
+              Completed
+            </span>
+          ) : (
+            <button
+              onClick={handleMarkAsCompleted}
+              disabled={!canMarkComplete}
+              className={`px-4 py-2 rounded-md font-medium transition-colors ${
+                canMarkComplete
+                  ? 'bg-green-600 hover:bg-green-700 text-white'
+                  : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+              }`}
+              title={!canMarkComplete ? 'Watch at least 30% of the video to mark as complete' : 'Mark video as completed'}
+            >
+              {canMarkComplete ? 'Mark as Completed' : `Watch ${Math.ceil(30 - progress)}% more`}
+            </button>
+          )}
+        </div>
       </div>
+
+      {/* Help text */}
+      {!isCompleted && (
+        <div className="text-xs text-gray-500 text-center">
+          {canMarkComplete ? 
+            'You can now mark this video as completed to unlock activities' :
+            'Watch at least 30% of the video to unlock the completion button'
+          }
+        </div>
+      )}
+
+      {/* Transcript */}
       {transcript.length > 0 && (
         <div className="bg-gray-50 p-4 rounded-lg text-sm space-y-1">
+          <h4 className="font-medium text-gray-700 mb-2">Transcript:</h4>
           {transcript.map((line, idx) => (
             <p key={idx}>{line}</p>
           ))}

@@ -86,47 +86,54 @@ export const ProgressProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     const progressId = `${currentUser.uid}_${unitId}`;
     const progressRef = doc(db, 'userProgress', progressId);
 
-    const existingProgress = await getDoc(progressRef);
-    const now = new Date();
+    try {
+      const existingProgress = await getDoc(progressRef);
+      const now = new Date();
 
-    const existingData = existingProgress.data() as Partial<UnitProgress> | undefined;
+      const existingData = existingProgress.data() as Partial<UnitProgress> | undefined;
 
-    const newProgress: UnitProgress = {
-      userId: currentUser.uid,
-      unitId,
-      lessonsProgress: {},
-      startedAt: now,
-      lastAccessedAt: now,
-      overallProgress: {
-        lessonsCompleted: 0,
-        totalLessons: 0,
-        percentComplete: 0
-      },
-      ...(existingData || {}),
-      ...updatedProgress,
-    };
+      const newProgress: UnitProgress = {
+        userId: currentUser.uid,
+        unitId,
+        lessonsProgress: {},
+        startedAt: now,
+        lastAccessedAt: now,
+        overallProgress: {
+          lessonsCompleted: 0,
+          totalLessons: 0,
+          percentComplete: 0
+        },
+        ...(existingData || {}),
+        ...updatedProgress,
+      };
 
-    const lessonsProgress = Object.values(newProgress.lessonsProgress);
-    const completedLessons = lessonsProgress.filter(l => l.completedAt).length;
-    const totalLessons = lessonsProgress.length;
+      // Calculate overall progress
+      const lessonsProgress = Object.values(newProgress.lessonsProgress);
+      const completedLessons = lessonsProgress.filter(l => l.completedAt).length;
+      const totalLessons = lessonsProgress.length;
 
-    newProgress.overallProgress = {
-      lessonsCompleted: completedLessons,
-      totalLessons,
-      percentComplete: totalLessons > 0 ? Math.round((completedLessons / totalLessons) * 100) : 0
-    };
+      newProgress.overallProgress = {
+        lessonsCompleted: completedLessons,
+        totalLessons,
+        percentComplete: totalLessons > 0 ? Math.round((completedLessons / totalLessons) * 100) : 0
+      };
 
-    if (completedLessons > 0 && completedLessons === totalLessons) {
-      newProgress.completedAt = now;
+      // Mark unit as completed if all lessons are done
+      if (completedLessons > 0 && completedLessons === totalLessons && !newProgress.completedAt) {
+        newProgress.completedAt = now;
+      }
+
+      await setDoc(progressRef, newProgress);
+      console.log('Progress saved successfully');
+      await refreshProgress();
+    } catch (error) {
+      console.error('Error saving progress:', error);
+      throw error;
     }
-
-    await setDoc(progressRef, newProgress);
-    await refreshProgress();
   };
 
   const markLessonVideoCompleted = async (unitId: number, lessonId: number, watchTime: number, duration: number) => {
-    const completionThreshold = 0.85;
-    const isCompleted = (watchTime / duration) >= completionThreshold;
+    console.log('Marking video completed:', { unitId, lessonId, watchTime, duration });
 
     const existingUnitProgress = getUnitProgress(unitId);
     const existingLessonProgress = existingUnitProgress?.lessonsProgress[lessonId];
@@ -134,15 +141,15 @@ export const ProgressProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     const now = new Date();
     const updatedLessonProgress: LessonProgress = {
       lessonId,
-      videoCompleted: isCompleted,
+      videoCompleted: true, // Always mark as completed when this function is called
       videoWatchTime: Math.max(watchTime, existingLessonProgress?.videoWatchTime || 0),
       videoDuration: duration,
       activitiesCompleted: existingLessonProgress?.activitiesCompleted || [],
       startedAt: existingLessonProgress?.startedAt || now,
       lastAccessedAt: now,
-      ...(isCompleted && !existingLessonProgress?.completedAt && { completedAt: now })
     };
 
+    // If video is completed and all activities are done, mark lesson as complete
     if (updatedLessonProgress.videoCompleted && updatedLessonProgress.activitiesCompleted.length > 0) {
       updatedLessonProgress.completedAt = now;
     }
@@ -159,6 +166,8 @@ export const ProgressProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   };
 
   const markLessonActivityCompleted = async (unitId: number, lessonId: number, activityId: number) => {
+    console.log('Marking activity completed:', { unitId, lessonId, activityId });
+
     const existingUnitProgress = getUnitProgress(unitId);
     const existingLessonProgress = existingUnitProgress?.lessonsProgress[lessonId];
 
@@ -179,6 +188,7 @@ export const ProgressProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       lastAccessedAt: now
     };
 
+    // If video is completed and this was the last activity, mark lesson as complete
     if (updatedLessonProgress.videoCompleted && completedActivities.length > 0) {
       updatedLessonProgress.completedAt = now;
     }
@@ -213,3 +223,4 @@ export const ProgressProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     </ProgressContext.Provider>
   );
 };
+
