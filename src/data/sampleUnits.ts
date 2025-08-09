@@ -27,31 +27,6 @@ export type Unit = {
   activities?: Activity[];
 };
 
-export type LessonProgress = {
-  lessonId: number;
-  videoCompleted: boolean;
-  videoWatchTime: number;
-  videoDuration: number;
-  activitiesCompleted: number[];
-  startedAt: Date;
-  completedAt?: Date;
-  lastAccessedAt: Date;
-};
-
-export type UnitProgress = {
-  userId: string;
-  unitId: number;
-  lessonsProgress: Record<number, LessonProgress>;
-  startedAt: Date;
-  completedAt?: Date;
-  lastAccessedAt: Date;
-  overallProgress: {
-    lessonsCompleted: number;
-    totalLessons: number;
-    percentComplete: number;
-  };
-};
-
 export const sampleUnits: Unit[] = [
   {
     id: 1,

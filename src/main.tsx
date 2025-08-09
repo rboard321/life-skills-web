@@ -13,12 +13,10 @@ import { ProtectedRoute } from './components/auth/ProtectedRoute';
 import Navbar from './components/layout/Navbar';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './contexts/AuthContext';
-import { ProgressProvider } from './contexts/ProgressContext';
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
-    <AuthProvider>
-      <ProgressProvider>
+      <AuthProvider>
         <BrowserRouter>
           <div className="min-h-screen bg-gray-50">
           <Navbar />
@@ -72,10 +70,9 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
             
             {/* Catch all route */}
             <Route path="*" element={<Navigate to="/" />} />
-          </Routes>
+            </Routes>
           </div>
         </BrowserRouter>
-      </ProgressProvider>
-    </AuthProvider>
+      </AuthProvider>
   </React.StrictMode>
 );
