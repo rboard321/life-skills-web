@@ -1,12 +1,9 @@
-
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { useUnits } from '../hooks/useUnits';
-import { useProgress } from '../contexts/ProgressContext';
 
 const UnitSelectionPage: React.FC = () => {
   const { units, loading, error } = useUnits();
-  const { getUnitProgress } = useProgress();
 
   if (loading) {
     return (
@@ -24,7 +21,7 @@ const UnitSelectionPage: React.FC = () => {
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
           <p className="text-red-600 mb-4">Error: {String(error)}</p>
-          <button 
+          <button
             onClick={() => window.location.reload()}
             className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
           >
@@ -40,8 +37,8 @@ const UnitSelectionPage: React.FC = () => {
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
           <p className="text-gray-600 mb-4">No units available</p>
-          <Link 
-            to="/admin" 
+          <Link
+            to="/admin"
             className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
           >
             Add Units in Admin
@@ -53,7 +50,6 @@ const UnitSelectionPage: React.FC = () => {
 
   return (
     <div className="container mx-auto py-8 px-4 max-w-4xl">
-      {/* Navigation breadcrumb */}
       <div className="mb-6">
         <nav className="flex items-center space-x-2 text-sm text-gray-600">
           <Link to="/" className="hover:text-blue-600">Dashboard</Link>
@@ -63,105 +59,23 @@ const UnitSelectionPage: React.FC = () => {
       </div>
 
       <h1 className="text-3xl font-bold text-center mb-8">Choose a Unit to Study</h1>
-      
+
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-        {units.map((unit) => {
-          const progress = getUnitProgress(unit.id);
-          const lessonsCompleted = progress?.overallProgress.lessonsCompleted || 0;
-          const totalLessons = unit.totalLessons ?? (unit.lessons ? unit.lessons.length : 0);
-          const isCompleted = progress?.completedAt;
-          const isStarted = lessonsCompleted > 0;
-
-          return (
-            <div
-              key={unit.id}
-              className={`bg-white rounded-lg shadow-md overflow-hidden hover:shadow-lg transition-shadow ${
-                isCompleted ? 'border-2 border-green-300' : ''
-              }`}
-            >
-              <div className="p-6">
-                <div className="flex items-start justify-between mb-4">
-                  <h2 className="text-xl font-semibold text-gray-900 flex-1">
-                    {unit.title}
-                  </h2>
-                  {isCompleted && (
-                    <span className="ml-2 text-green-500 text-xl">✓</span>
-                  )}
-                </div>
-
-                {/* Progress indicators */}
-                <div className="space-y-3 mb-6">
-                  {/* Lessons progress */}
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-gray-600">Lessons:</span>
-                    <span className="text-blue-600 font-medium">
-                      {lessonsCompleted}/{totalLessons}
-                    </span>
-                  </div>
-
-                  {/* Progress bar */}
-                  <div className="w-full bg-gray-200 rounded-full h-2">
-                    <div
-                      className={`h-2 rounded-full transition-all duration-300 ${
-                        isCompleted ? 'bg-green-500' : 'bg-blue-500'
-                      }`}
-                      style={{
-                        width: `${totalLessons > 0 ? (lessonsCompleted / totalLessons) * 100 : 0}%`
-                      }}
-                    />
-                  </div>
-
-                  {/* Overall status */}
-                  <div className="text-center">
-                    <span className={`inline-block px-3 py-1 rounded-full text-xs font-medium ${
-                      isCompleted ? 
-                        'bg-green-100 text-green-800' :
-                        isStarted ?
-                          'bg-yellow-100 text-yellow-800' :
-                          'bg-gray-100 text-gray-600'
-                    }`}>
-                      {isCompleted ? 
-                        '🎉 Complete' :
-                        isStarted ?
-                          '⏳ In Progress' :
-                          '📚 Not Started'
-                      }
-                    </span>
-                  </div>
-                </div>
-
-                {/* Action button */}
-                <Link
-                  to={`/unit/${unit.id}`}
-                  className={`block w-full text-center py-3 px-4 rounded-md font-medium transition-colors ${
-                    isCompleted ?
-                      'bg-green-600 hover:bg-green-700 text-white' :
-                      isStarted ?
-                        'bg-blue-600 hover:bg-blue-700 text-white' :
-                        'bg-gray-800 hover:bg-gray-900 text-white'
-                  }`}
-                >
-                  {isCompleted ? 
-                    'Review Unit' :
-                    isStarted ?
-                      'Continue Learning' :
-                      'Start Unit'
-                  }
-                </Link>
-
-                {/* Completion date */}
-                {isCompleted && progress?.completedAt && (
-                  <p className="text-xs text-gray-500 text-center mt-2">
-                    Completed on {progress.completedAt.toLocaleDateString()}
-                  </p>
-                )}
-              </div>
-            </div>
-          );
-        })}
+        {units.map((unit) => (
+          <Link
+            key={unit.id}
+            to={`/unit/${unit.id}`}
+            className="bg-white rounded-lg shadow-md overflow-hidden hover:shadow-lg transition-shadow p-6"
+          >
+            <h2 className="text-xl font-semibold text-gray-900 mb-2">{unit.title}</h2>
+            {unit.description && (
+              <p className="text-gray-600 text-sm mb-4 line-clamp-2">{unit.description}</p>
+            )}
+            <span className="text-blue-600 font-medium">View Unit →</span>
+          </Link>
+        ))}
       </div>
 
-      {/* Back to dashboard button */}
       <div className="mt-8 text-center">
         <Link
           to="/"
