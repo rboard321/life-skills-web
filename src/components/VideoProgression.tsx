@@ -33,9 +33,11 @@ const VideoProgression: React.FC<VideoProgressionProps> = ({
 }) => {
   const [videoCompleted, setVideoCompleted] = useState(false);
   const [currentActivityIndex, setCurrentActivityIndex] = useState(0);
-  const [completedActivities, setCompletedActivities] = useState<Set<number>>(new Set());
+  const [completedActivities, setCompletedActivities] = useState<Set<number>>(() => new Set());
   const [showingVideo, setShowingVideo] = useState(true);
   const [watchedPercentage, setWatchedPercentage] = useState(0);
+  const [videoError, setVideoError] = useState<string | null>(null);
+  const [videoReady, setVideoReady] = useState(false);
 
   const [duration, setDuration] = useState(0);
   const [, setWatchedSeconds] = useState<Set<number>>(() => new Set());
@@ -47,58 +49,117 @@ const VideoProgression: React.FC<VideoProgressionProps> = ({
   const lessonFullyCompleted = videoCompleted && allActivitiesCompleted;
 
   const handleProgress = (state: { playedSeconds: number }) => {
-    const currentSecond = Math.floor(state.playedSeconds);
-    setWatchedSeconds(prev => {
-      const updatedSeconds = new Set(prev);
-      updatedSeconds.add(currentSecond);
+    try {
+      const currentSecond = Math.floor(state.playedSeconds);
 
-      if (duration > 0) {
-        const totalSeconds = Math.max(1, Math.floor(duration));
-        const percentage = (updatedSeconds.size / totalSeconds) * 100;
-        setWatchedPercentage(percentage);
+      setWatchedSeconds(prevSeconds => {
+        const updatedSeconds = new Set(prevSeconds);
+        updatedSeconds.add(currentSecond);
 
-        if (percentage >= 80 && !videoCompleted) {
-          setVideoCompleted(true);
+        if (duration > 0) {
+          const totalDurationSeconds = Math.max(1, Math.floor(duration));
+          const percentage = (updatedSeconds.size / totalDurationSeconds) * 100;
+          const clampedPercentage = Math.min(percentage, 100);
+          setWatchedPercentage(clampedPercentage);
+
+          if (clampedPercentage >= 80 && !videoCompleted) {
+            setVideoCompleted(true);
+          }
         }
-      }
 
-      return updatedSeconds;
-    });
+        return updatedSeconds;
+      });
+    } catch (error) {
+      console.error('Error tracking video progress:', error);
+    }
   };
 
   const handleDuration = (value: number) => {
-    setDuration(value);
+    try {
+      setDuration(value);
+      setVideoError(null);
+    } catch (error) {
+      console.error('Error setting video duration:', error);
+    }
   };
 
   const handleVideoEnd = () => {
-    setVideoCompleted(true);
+    try {
+      setVideoCompleted(true);
+    } catch (error) {
+      console.error('Error handling video end:', error);
+    }
+  };
+
+  const handleVideoReady = () => {
+    try {
+      setVideoReady(true);
+      setVideoError(null);
+    } catch (error) {
+      console.error('Error handling video ready:', error);
+    }
+  };
+
+  const handleVideoError = (error: unknown) => {
+    console.error('Video playback error:', error);
+    setVideoError('Unable to load video. Please check your internet connection or try refreshing the page.');
   };
 
   const handleActivityComplete = () => {
-    const currentActivity = activities[currentActivityIndex];
-    if (currentActivity) {
-      setCompletedActivities(prev => {
-        const updated = new Set(prev);
-        updated.add(currentActivity.id);
-        return updated;
-      });
+    try {
+      const currentActivity = activities[currentActivityIndex];
+      if (currentActivity) {
+        setCompletedActivities(prevActivities => {
+          const updatedActivities = new Set(prevActivities);
+          updatedActivities.add(currentActivity.id);
+          return updatedActivities;
+        });
+      }
+    } catch (error) {
+      console.error('Error completing activity:', error);
     }
   };
 
   const goToNextActivity = () => {
-    if (currentActivityIndex < activities.length - 1) {
-      setCurrentActivityIndex(prev => prev + 1);
+    try {
+      if (currentActivityIndex < activities.length - 1) {
+        setCurrentActivityIndex(prevIndex => prevIndex + 1);
+      }
+    } catch (error) {
+      console.error('Error navigating to next activity:', error);
     }
   };
 
   const goToPreviousActivity = () => {
-    if (currentActivityIndex > 0) {
-      setCurrentActivityIndex(prev => prev - 1);
+    try {
+      if (currentActivityIndex > 0) {
+        setCurrentActivityIndex(prevIndex => prevIndex - 1);
+      }
+    } catch (error) {
+      console.error('Error navigating to previous activity:', error);
     }
   };
 
   const currentActivity = activities[currentActivityIndex];
   const isCurrentActivityCompleted = currentActivity ? completedActivities.has(currentActivity.id) : false;
+
+  if (activities.length === 0) {
+    return (
+      <div className="max-w-4xl mx-auto p-6">
+        <div className="mb-6">
+          <h1 className="text-3xl font-bold text-gray-900 mb-2">{lessonTitle}</h1>
+        </div>
+
+        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-6 text-center">
+          <h3 className="text-lg font-semibold text-yellow-800 mb-2">No Activities Available</h3>
+          <p className="text-yellow-600 mb-4">This lesson doesn't have any activities yet.</p>
+          <Link to={backToUnitUrl} className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">
+            Back to Unit
+          </Link>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-4xl mx-auto p-6">
@@ -115,17 +176,16 @@ const VideoProgression: React.FC<VideoProgressionProps> = ({
         </div>
 
         <div className="w-full bg-gray-200 rounded-full h-3 mb-4">
-          <div
-            className="bg-blue-500 h-3 rounded-full transition-all duration-300"
-            style={{ width: `${overallProgress}%` }}
-          />
+          <div className="bg-blue-500 h-3 rounded-full transition-all duration-300" style={{ width: `${overallProgress}%` }} />
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
           <div className="flex items-center">
-            <span className={`w-6 h-6 rounded-full flex items-center justify-center text-white text-xs mr-2 ${
-              videoCompleted ? 'bg-green-500' : 'bg-gray-400'
-            }`}>
+            <span
+              className={`w-6 h-6 rounded-full flex items-center justify-center text-white text-xs mr-2 ${
+                videoCompleted ? 'bg-green-500' : 'bg-gray-400'
+              }`}
+            >
               {videoCompleted ? '✓' : '1'}
             </span>
             <span className={videoCompleted ? 'text-green-600 font-medium' : ''}>
@@ -134,9 +194,11 @@ const VideoProgression: React.FC<VideoProgressionProps> = ({
           </div>
 
           <div className="flex items-center">
-            <span className={`w-6 h-6 rounded-full flex items-center justify-center text-white text-xs mr-2 ${
-              allActivitiesCompleted ? 'bg-green-500' : 'bg-gray-400'
-            }`}>
+            <span
+              className={`w-6 h-6 rounded-full flex items-center justify-center text-white text-xs mr-2 ${
+                allActivitiesCompleted ? 'bg-green-500' : 'bg-gray-400'
+              }`}
+            >
               {allActivitiesCompleted ? '✓' : '2'}
             </span>
             <span className={allActivitiesCompleted ? 'text-green-600 font-medium' : ''}>
@@ -145,14 +207,14 @@ const VideoProgression: React.FC<VideoProgressionProps> = ({
           </div>
 
           <div className="flex items-center">
-            <span className={`w-6 h-6 rounded-full flex items-center justify-center text-white text-xs mr-2 ${
-              lessonFullyCompleted ? 'bg-green-500' : 'bg-gray-400'
-            }`}>
+            <span
+              className={`w-6 h-6 rounded-full flex items-center justify-center text-white text-xs mr-2 ${
+                lessonFullyCompleted ? 'bg-green-500' : 'bg-gray-400'
+              }`}
+            >
               {lessonFullyCompleted ? '✓' : '3'}
             </span>
-            <span className={lessonFullyCompleted ? 'text-green-600 font-medium' : ''}>
-              Lesson Complete
-            </span>
+            <span className={lessonFullyCompleted ? 'text-green-600 font-medium' : ''}>Lesson Complete</span>
           </div>
         </div>
       </div>
@@ -171,64 +233,94 @@ const VideoProgression: React.FC<VideoProgressionProps> = ({
             )}
           </div>
 
-          <Player
-            url={videoUrl}
-            controls
-            width="100%"
-            height="400px"
-            onProgress={handleProgress}
-            onDuration={handleDuration}
-            onEnded={handleVideoEnd}
-            config={
-              captionsUrl
-                ? {
-                    file: {
-                      tracks: [
-                        {
-                          kind: 'subtitles',
-                          src: captionsUrl,
-                          srcLang: 'en',
-                          default: true
-                        }
-                      ]
-                    }
-                  }
-                : undefined
-            }
-            className="rounded-lg overflow-hidden"
-          />
+          {videoError ? (
+            <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+              <h3 className="font-semibold text-red-800 mb-2">Video Loading Error</h3>
+              <p className="text-red-600 text-sm mb-4">{videoError}</p>
+              <button
+                onClick={() => {
+                  setVideoError(null);
+                  setVideoReady(false);
+                }}
+                className="bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700"
+              >
+                Try Again
+              </button>
+            </div>
+          ) : (
+            <>
+              {!videoReady && (
+                <div className="flex items-center justify-center h-96 bg-gray-100 rounded-lg mb-4">
+                  <div className="text-center">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-2"></div>
+                    <p className="text-gray-600">Loading video...</p>
+                  </div>
+                </div>
+              )}
 
-          <div className="mt-4">
-            {videoCompleted ? (
-              <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
-                <div className="flex items-center">
-                  <span className="text-green-500 text-xl mr-2">✅</span>
-                  <div>
-                    <h3 className="font-semibold text-green-800">Video Complete!</h3>
-                    <p className="text-green-600 text-sm">You can now access the activities.</p>
+              <Player
+                url={videoUrl}
+                controls
+                width="100%"
+                height="400px"
+                onProgress={handleProgress}
+                onDuration={handleDuration}
+                onEnded={handleVideoEnd}
+                onReady={handleVideoReady}
+                onError={handleVideoError}
+                config={
+                  captionsUrl
+                    ? {
+                        file: {
+                          tracks: [
+                            {
+                              kind: 'subtitles',
+                              src: captionsUrl,
+                              srcLang: 'en',
+                              default: true
+                            }
+                          ]
+                        }
+                      }
+                    : undefined
+                }
+                className="rounded-lg overflow-hidden"
+                style={{ display: videoReady ? 'block' : 'none' }}
+              />
+            </>
+          )}
+
+          {!videoError && (
+            <div className="mt-4">
+              {videoCompleted ? (
+                <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
+                  <div className="flex items-center">
+                    <span className="text-green-500 text-xl mr-2">✅</span>
+                    <div>
+                      <h3 className="font-semibold text-green-800">Video Complete!</h3>
+                      <p className="text-green-600 text-sm">You can now access the activities.</p>
+                    </div>
                   </div>
                 </div>
-              </div>
-            ) : (
-              <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h3 className="font-semibold text-blue-800">Keep Watching</h3>
-                    <p className="text-blue-600 text-sm">Watch at least 80% of the video to unlock activities</p>
+              ) : (
+                <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h3 className="font-semibold text-blue-800">Keep Watching</h3>
+                      <p className="text-blue-600 text-sm">Watch at least 80% of the video to unlock activities</p>
+                    </div>
+                    <div className="text-blue-600 font-medium">{Math.round(watchedPercentage)}% / 80%</div>
                   </div>
-                  <div className="text-blue-600 font-medium">
-                    {Math.round(watchedPercentage)}% / 80%
+                  <div className="w-full bg-blue-200 rounded-full h-2 mt-2">
+                    <div
+                      className="bg-blue-500 h-2 rounded-full transition-all duration-300"
+                      style={{ width: `${Math.min(watchedPercentage, 100)}%` }}
+                    />
                   </div>
                 </div>
-                <div className="w-full bg-blue-200 rounded-full h-2 mt-2">
-                  <div
-                    className="bg-blue-500 h-2 rounded-full transition-all duration-300"
-                    style={{ width: `${Math.min(watchedPercentage, 100)}%` }}
-                  />
-                </div>
-              </div>
-            )}
-          </div>
+              )}
+            </div>
+          )}
         </div>
       )}
 
@@ -248,9 +340,7 @@ const VideoProgression: React.FC<VideoProgressionProps> = ({
 
           {currentActivity && (
             <>
-              <h3 className="text-lg font-medium mb-4">
-                {currentActivity.title || `Activity ${currentActivityIndex + 1}`}
-              </h3>
+              <h3 className="text-lg font-medium mb-4">{currentActivity.title || `Activity ${currentActivityIndex + 1}`}</h3>
 
               <div className="mb-6 border rounded-lg overflow-hidden">
                 <iframe
@@ -260,6 +350,9 @@ const VideoProgression: React.FC<VideoProgressionProps> = ({
                   title={currentActivity.title || `Activity ${currentActivityIndex + 1}`}
                   allowFullScreen
                   className="border-0"
+                  onError={event => {
+                    console.error('Activity iframe error:', event);
+                  }}
                 />
               </div>
 
@@ -325,23 +418,15 @@ const VideoProgression: React.FC<VideoProgressionProps> = ({
         <div className="mt-8 bg-gradient-to-r from-green-50 to-blue-50 border border-green-200 rounded-lg p-8 text-center">
           <div className="text-6xl mb-4">🎉</div>
           <h3 className="text-2xl font-bold text-green-900 mb-2">Congratulations! Lesson Complete!</h3>
-          <p className="text-green-700 mb-6">
-            You've successfully watched the video and completed all activities.
-          </p>
+          <p className="text-green-700 mb-6">You've successfully watched the video and completed all activities.</p>
 
           <div className="flex justify-center space-x-4">
-            <Link
-              to={backToUnitUrl}
-              className="bg-gray-600 text-white px-6 py-3 rounded-lg hover:bg-gray-700 transition-colors"
-            >
+            <Link to={backToUnitUrl} className="bg-gray-600 text-white px-6 py-3 rounded-lg hover:bg-gray-700 transition-colors">
               ← Back to Unit
             </Link>
 
             {nextLessonUrl && (
-              <Link
-                to={nextLessonUrl}
-                className="bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition-colors"
-              >
+              <Link to={nextLessonUrl} className="bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition-colors">
                 Next: {nextLessonTitle} →
               </Link>
             )}
