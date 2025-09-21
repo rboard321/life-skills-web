@@ -12,6 +12,34 @@ import {
 } from 'firebase/firestore';
 import type { Unit, Lesson, Activity } from '../data/sampleUnits';
 
+export const optimizeYouTubeUrl = (url: string): string => {
+  try {
+    const videoIdMatch = url.match(
+      /(?:youtube\.com\/(?:[^/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/\s]{11})/
+    );
+
+    if (!videoIdMatch) {
+      return url;
+    }
+
+    const videoId = videoIdMatch[1];
+
+    return (
+      `https://www.youtube.com/embed/${videoId}?` +
+      'modestbranding=1&' +
+      'rel=0&' +
+      'showinfo=0&' +
+      'fs=1&' +
+      'cc_load_policy=1&' +
+      'iv_load_policy=3&' +
+      'enablejsapi=1'
+    );
+  } catch (error) {
+    console.error('Error optimizing YouTube URL:', error);
+    return url;
+  }
+};
+
 const AdminPage: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'units' | 'lessons' | 'manage'>('units');
   const [existingUnits, setExistingUnits] = useState<(Unit & { docId: string })[]>([]);
@@ -159,11 +187,13 @@ const AdminPage: React.FC = () => {
     }
 
     const lessonCount = (selectedUnit.lessons ?? []).length;
+    const optimizedVideoUrl = optimizeYouTubeUrl(lessonVideoUrl);
+
     const newLesson: Lesson = {
       id: lessonCount + 1,
       title: lessonTitle,
       description: lessonDescription,
-      videoUrl: lessonVideoUrl,
+      videoUrl: optimizedVideoUrl,
       order: lessonCount + 1,
       activities: activities.map((activity, index) => ({
         ...activity,
@@ -256,11 +286,13 @@ const AdminPage: React.FC = () => {
       if (unitSnap.exists()) {
         const unitData = unitSnap.data() as Unit;
         const lessons = unitData.lessons || [];
+        const optimizedVideoUrl = optimizeYouTubeUrl(editLessonVideoUrl);
+
         lessons[index] = {
           ...lessons[index],
           title: editLessonTitle,
           description: editLessonDescription,
-          videoUrl: editLessonVideoUrl,
+          videoUrl: optimizedVideoUrl,
           activities: editActivities.map((act, idx) => ({
             ...act,
             id: idx + 1
