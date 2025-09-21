@@ -14,26 +14,35 @@ import Navbar from './components/layout/Navbar';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './contexts/AuthContext';
 
+window.addEventListener('unhandledrejection', event => {
+  console.error('Unhandled promise rejection:', event.reason);
+  event.preventDefault();
+});
+
+window.addEventListener('error', event => {
+  console.error('Global error:', event.error ?? event.message);
+});
+
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
-      <AuthProvider>
-        <BrowserRouter>
-          <div className="min-h-screen bg-gray-50">
+    <AuthProvider>
+      <BrowserRouter>
+        <div className="min-h-screen bg-gray-50">
           <Navbar />
           <Routes>
             {/* Public Routes */}
             <Route path="/login" element={<Login />} />
             <Route path="/signup" element={<Signup />} />
             <Route path="/forgot-password" element={<ForgotPassword />} />
-            
+
             {/* Protected Routes */}
-            <Route 
-              path="/" 
+            <Route
+              path="/"
               element={
                 <ProtectedRoute>
                   <Dashboard />
                 </ProtectedRoute>
-              } 
+              }
             />
             <Route
               path="/units"
@@ -67,12 +76,12 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
                 </ProtectedRoute>
               }
             />
-            
+
             {/* Catch all route */}
             <Route path="*" element={<Navigate to="/" />} />
-            </Routes>
-          </div>
-        </BrowserRouter>
-      </AuthProvider>
+          </Routes>
+        </div>
+      </BrowserRouter>
+    </AuthProvider>
   </React.StrictMode>
 );

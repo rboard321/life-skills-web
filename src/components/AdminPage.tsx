@@ -15,7 +15,7 @@ import type { Unit, Lesson, Activity } from '../data/sampleUnits';
 export const optimizeYouTubeUrl = (url: string): string => {
   try {
     const videoIdMatch = url.match(
-      /(?:youtube\.com\/(?:[^/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/\s]{11})/
+      /(?:youtube\.com\/(?:[^/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?/\s]{11})/
     );
 
     if (!videoIdMatch) {
