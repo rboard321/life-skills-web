@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import ReactPlayer from 'react-player';
 import { Link } from 'react-router-dom';
 
@@ -41,6 +41,34 @@ const VideoProgression: React.FC<VideoProgressionProps> = ({
 
   const [duration, setDuration] = useState(0);
   const [, setWatchedSeconds] = useState<Set<number>>(() => new Set());
+
+  useEffect(() => {
+    console.debug('[VideoProgression] Video URL updated', { videoUrl });
+  }, [videoUrl]);
+
+  useEffect(() => {
+    if (duration > 0) {
+      console.debug('[VideoProgression] Video duration detected', { duration });
+    }
+  }, [duration]);
+
+  useEffect(() => {
+    if (videoReady) {
+      console.debug('[VideoProgression] Video ready for playback', { videoUrl });
+    }
+  }, [videoReady, videoUrl]);
+
+  useEffect(() => {
+    if (videoError) {
+      console.error('[VideoProgression] Video error state', { videoError, videoUrl });
+    }
+  }, [videoError, videoUrl]);
+
+  useEffect(() => {
+    if (videoCompleted) {
+      console.debug('[VideoProgression] Video marked as complete');
+    }
+  }, [videoCompleted]);
 
   const totalSteps = 1 + activities.length;
   const completedSteps = (videoCompleted ? 1 : 0) + completedActivities.size;
