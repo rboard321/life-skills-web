@@ -11,34 +11,7 @@ import {
   arrayUnion
 } from 'firebase/firestore';
 import type { Unit, Lesson, Activity } from '../data/sampleUnits';
-
-export const optimizeYouTubeUrl = (url: string): string => {
-  try {
-    const videoIdMatch = url.match(
-      /(?:youtube\.com\/(?:[^/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?/\s]{11})/
-    );
-
-    if (!videoIdMatch) {
-      return url;
-    }
-
-    const videoId = videoIdMatch[1];
-
-    return (
-      `https://www.youtube.com/embed/${videoId}?` +
-      'modestbranding=1&' +
-      'rel=0&' +
-      'showinfo=0&' +
-      'fs=1&' +
-      'cc_load_policy=1&' +
-      'iv_load_policy=3&' +
-      'enablejsapi=1'
-    );
-  } catch (error) {
-    console.error('Error optimizing YouTube URL:', error);
-    return url;
-  }
-};
+import { optimizeYouTubeUrl } from '../utils/youtube';
 
 const AdminPage: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'units' | 'lessons' | 'manage'>('units');
@@ -512,8 +485,18 @@ const AdminPage: React.FC = () => {
                         onChange={e => setLessonVideoUrl(e.target.value)}
                         required
                         className="w-full mt-1 p-2 border border-gray-300 rounded-md"
-                        placeholder="YouTube embed URL"
+                        placeholder="YouTube URL (any format)"
                       />
+                      <p className="text-xs text-gray-500 mt-1">
+                        Accepts watch, share, embed, or shorts links. The URL will be converted to an optimized
+                        embed automatically.
+                      </p>
+                      {lessonVideoUrl && (
+                        <p className="text-xs text-blue-600 mt-1 break-all">
+                          Will be optimized to:{' '}
+                          <span className="font-mono">{optimizeYouTubeUrl(lessonVideoUrl)}</span>
+                        </p>
+                      )}
                     </div>
                   </div>
 
@@ -706,9 +689,19 @@ const AdminPage: React.FC = () => {
                                     value={editLessonVideoUrl}
                                     onChange={e => setEditLessonVideoUrl(e.target.value)}
                                     className="w-full p-2 border rounded"
-                                    placeholder="Video URL"
+                                    placeholder="YouTube URL (any format)"
                                     required
                                   />
+                                  <p className="text-xs text-gray-500 mt-1">
+                                    Accepts watch, share, embed, or shorts links. The URL will be converted to an
+                                    optimized embed automatically.
+                                  </p>
+                                  {editLessonVideoUrl && (
+                                    <p className="text-xs text-blue-600 mt-1 break-all">
+                                      Will be optimized to:{' '}
+                                      <span className="font-mono">{optimizeYouTubeUrl(editLessonVideoUrl)}</span>
+                                    </p>
+                                  )}
                                   <div>
                                     <div className="flex justify-between items-center mb-2">
                                       <label className="block text-sm font-medium text-gray-700">

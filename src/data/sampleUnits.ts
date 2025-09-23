@@ -30,15 +30,18 @@ export type Unit = {
 export const sampleUnits: Unit[] = [
   {
     id: 1,
-    title: 'Unit 1',
+    title: 'Unit 1: Introduction to Life Skills',
+    description: 'Learn the basics of essential life skills',
     order: 1,
     totalLessons: 1,
     lessons: [
       {
         id: 1,
-        title: 'Lesson 1',
+        title: 'Lesson 1: Getting Started',
+        description: 'An introduction to the course and basic concepts',
         order: 1,
-        videoUrl: 'https://www.youtube.com/embed/kInkncJ1fc',
+        // Using a working YouTube video for testing
+        videoUrl: 'https://www.youtube.com/embed/dQw4w9WgXcQ',
         captionsUrl: '/captions/lesson1.vtt',
         activities: [
           {
