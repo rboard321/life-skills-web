@@ -30,6 +30,10 @@
     "src/components/LessonPage.tsx",
     "src/components/UnitSelectionPage.tsx",
     "src/components/Dashboard.tsx",
-    "src/components/VideoProgression.tsx"
+    "src/components/VideoProgression.tsx",
+    "**/__tests__/**",
+    "**/*.test.ts",
+    "**/*.test.tsx",
+    "src/test/**"
   ]
 }
