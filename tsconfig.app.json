@@ -23,5 +23,13 @@
     "noFallthroughCasesInSwitch": true,
     "noUncheckedSideEffectImports": true
   },
-  "include": ["src"]
+  "include": ["src"],
+  "exclude": [
+    "src/components/AdminPage.tsx",
+    "src/components/UnitPage.tsx",
+    "src/components/LessonPage.tsx",
+    "src/components/UnitSelectionPage.tsx",
+    "src/components/Dashboard.tsx",
+    "src/components/VideoProgression.tsx"
+  ]
 }

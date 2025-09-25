@@ -1,11 +1,9 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import './index.css';
-import UnitSelectionPage from './components/UnitSelectionPage';
-import Dashboard from './components/Dashboard';
-import AdminPage from './components/AdminPage';
-import UnitPage from './components/UnitPage';
-import LessonPage from './components/LessonPage';
+import StudentDashboard from './components/StudentDashboard';
+import UnitLearning from './components/UnitLearning';
+import SimpleAdminPage from './components/SimpleAdminPage';
 import Login from './components/auth/Login';
 import Signup from './components/auth/Signup';
 import ForgotPassword from './components/auth/ForgotPassword';
@@ -40,31 +38,15 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
               path="/"
               element={
                 <ProtectedRoute>
-                  <Dashboard />
+                  <StudentDashboard />
                 </ProtectedRoute>
               }
             />
             <Route
-              path="/units"
+              path="/unit/:id/learn"
               element={
                 <ProtectedRoute>
-                  <UnitSelectionPage />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/unit/:id"
-              element={
-                <ProtectedRoute>
-                  <UnitPage />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/unit/:unitId/lesson/:lessonId"
-              element={
-                <ProtectedRoute>
-                  <LessonPage />
+                  <UnitLearning />
                 </ProtectedRoute>
               }
             />
@@ -72,7 +54,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
               path="/admin"
               element={
                 <ProtectedRoute requiresAdmin>
-                  <AdminPage />
+                  <SimpleAdminPage />
                 </ProtectedRoute>
               }
             />
