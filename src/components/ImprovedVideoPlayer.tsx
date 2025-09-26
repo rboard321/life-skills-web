@@ -184,8 +184,10 @@ const ImprovedVideoPlayer: React.FC<ImprovedVideoPlayerProps> = ({
           <span className="mr-2">Want to review?</span>
           <button
             onClick={() => {
-              setPlaying(true);
-              playerRef.current?.seekTo(0);
+              if (playerRef.current && playerRef.current.seekTo) {
+                playerRef.current.seekTo(0);
+                setPlaying(true);
+              }
             }}
             className="text-blue-600 hover:text-blue-800 underline"
           >

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { collection, addDoc, getDocs, doc, deleteDoc } from 'firebase/firestore';
+import { collection, addDoc, getDocs, doc, deleteDoc, updateDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 import type { Unit } from '../data/sampleUnits';
 import { optimizeYouTubeUrl } from '../utils/youtube';
@@ -23,6 +23,15 @@ const SimpleAdminPage: React.FC = () => {
   // Loading states
   const [loading, setLoading] = useState(false);
   const [unitsLoading, setUnitsLoading] = useState(true);
+
+  // Edit state
+  const [editingUnit, setEditingUnit] = useState<FirebaseUnit | null>(null);
+  const [editTitle, setEditTitle] = useState('');
+  const [editDescription, setEditDescription] = useState('');
+  const [editVideoUrl, setEditVideoUrl] = useState('');
+  const [editActivityUrl, setEditActivityUrl] = useState('');
+  const [editActivityType, setEditActivityType] = useState<'h5p' | 'wordwall'>('h5p');
+  const [editOrder, setEditOrder] = useState(1);
 
   useEffect(() => {
     loadUnits();
@@ -118,6 +127,75 @@ const SimpleAdminPage: React.FC = () => {
       console.error('Error deleting unit:', error);
       alert('Failed to delete unit');
     }
+  };
+
+  const handleEditUnit = (unit: FirebaseUnit) => {
+    setEditingUnit(unit);
+    setEditTitle(unit.title);
+    setEditDescription(unit.description);
+    setEditVideoUrl(unit.videoUrl);
+    setEditActivityUrl(unit.activityUrl);
+    setEditActivityType(unit.activityType);
+    setEditOrder(unit.order);
+  };
+
+  const handleUpdateUnit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingUnit) return;
+
+    setLoading(true);
+
+    try {
+      // Validate required fields
+      if (!editTitle.trim() || !editDescription.trim() || !editVideoUrl.trim() || !editActivityUrl.trim()) {
+        alert('Please fill in all fields');
+        return;
+      }
+
+      // Optimize YouTube URL
+      const optimizedVideoUrl = optimizeYouTubeUrl(editVideoUrl);
+
+      const updatedUnit: Unit = {
+        id: editingUnit.id,
+        title: editTitle.trim(),
+        description: editDescription.trim(),
+        videoUrl: optimizedVideoUrl,
+        activityUrl: editActivityUrl.trim(),
+        activityType: editActivityType,
+        order: editOrder
+      };
+
+      await updateDoc(doc(db, 'units', editingUnit.docId), updatedUnit);
+
+      // Reset edit state
+      setEditingUnit(null);
+      setEditTitle('');
+      setEditDescription('');
+      setEditVideoUrl('');
+      setEditActivityUrl('');
+      setEditActivityType('h5p');
+      setEditOrder(1);
+
+      // Reload units
+      await loadUnits();
+
+      alert('Unit updated successfully! 🎉');
+    } catch (error) {
+      console.error('Error updating unit:', error);
+      alert('Failed to update unit. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleCancelEdit = () => {
+    setEditingUnit(null);
+    setEditTitle('');
+    setEditDescription('');
+    setEditVideoUrl('');
+    setEditActivityUrl('');
+    setEditActivityType('h5p');
+    setEditOrder(1);
   };
 
   return (
@@ -343,6 +421,12 @@ const SimpleAdminPage: React.FC = () => {
                           Preview Video
                         </button>
                         <button
+                          onClick={() => handleEditUnit(unit)}
+                          className="text-green-600 hover:text-green-800 text-sm underline"
+                        >
+                          Edit
+                        </button>
+                        <button
                           onClick={() => handleDeleteUnit(unit)}
                           className="text-red-600 hover:text-red-800 text-sm underline"
                         >
@@ -354,6 +438,151 @@ const SimpleAdminPage: React.FC = () => {
                 ))}
               </div>
             )}
+          </div>
+        )}
+
+        {/* Edit Unit Modal/Form */}
+        {editingUnit && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+            <div className="bg-white rounded-lg shadow-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+              <div className="p-6">
+                <div className="flex justify-between items-center mb-6">
+                  <h2 className="text-2xl font-semibold text-gray-900">Edit Unit</h2>
+                  <button
+                    onClick={handleCancelEdit}
+                    className="text-gray-400 hover:text-gray-600"
+                  >
+                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                </div>
+
+                <form onSubmit={handleUpdateUnit} className="space-y-6">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Unit Title *
+                      </label>
+                      <input
+                        type="text"
+                        value={editTitle}
+                        onChange={(e) => setEditTitle(e.target.value)}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        placeholder="e.g., Basic Communication Skills"
+                        required
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Unit Order
+                      </label>
+                      <input
+                        type="number"
+                        value={editOrder}
+                        onChange={(e) => setEditOrder(parseInt(e.target.value) || 1)}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        min="1"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Description *
+                    </label>
+                    <textarea
+                      value={editDescription}
+                      onChange={(e) => setEditDescription(e.target.value)}
+                      rows={3}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      placeholder="Describe what students will learn in this unit..."
+                      required
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Video URL *
+                    </label>
+                    <input
+                      type="url"
+                      value={editVideoUrl}
+                      onChange={(e) => setEditVideoUrl(e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      placeholder="https://youtube.com/watch?v=..."
+                      required
+                    />
+                    {editVideoUrl && (
+                      <p className="text-xs text-blue-600 mt-1">
+                        Preview: {optimizeYouTubeUrl(editVideoUrl)}
+                      </p>
+                    )}
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="md:col-span-2">
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Activity URL *
+                      </label>
+                      <input
+                        type="url"
+                        value={editActivityUrl}
+                        onChange={(e) => setEditActivityUrl(e.target.value)}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        placeholder="https://h5p.org/... or https://wordwall.net/..."
+                        required
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Activity Type
+                      </label>
+                      <select
+                        value={editActivityType}
+                        onChange={(e) => setEditActivityType(e.target.value as 'h5p' | 'wordwall')}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      >
+                        <option value="h5p">H5P Interactive</option>
+                        <option value="wordwall">Wordwall Game</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div className="pt-4 border-t flex gap-3">
+                    <button
+                      type="submit"
+                      disabled={loading}
+                      className="flex-1 bg-blue-600 text-white px-6 py-3 rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
+                    >
+                      {loading ? (
+                        <>
+                          <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                          Updating Unit...
+                        </>
+                      ) : (
+                        <>
+                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                          </svg>
+                          Update Unit
+                        </>
+                      )}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleCancelEdit}
+                      disabled={loading}
+                      className="px-6 py-3 border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </div>
           </div>
         )}
 

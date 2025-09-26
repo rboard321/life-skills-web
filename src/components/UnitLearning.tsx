@@ -261,6 +261,9 @@ const UnitLearning: React.FC = () => {
                     <iframe
                       src={getEmbeddableActivityUrl(unit.activityUrl, unit.activityType)}
                       className="w-full h-full"
+                      style={{maxWidth: '100%'}}
+                      width="500"
+                      height="380"
                       frameBorder="0"
                       allowFullScreen
                       title={`${unit.title} Activity`}
