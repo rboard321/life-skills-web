@@ -31,6 +31,7 @@
     "src/components/UnitSelectionPage.tsx",
     "src/components/Dashboard.tsx",
     "src/components/VideoProgression.tsx",
+    "src/components/ImprovedVideoPlayer.tsx",
     "**/__tests__/**",
     "**/*.test.ts",
     "**/*.test.tsx",

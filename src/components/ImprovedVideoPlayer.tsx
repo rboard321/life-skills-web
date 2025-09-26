@@ -1,0 +1,209 @@
+import React, { useState, useRef, useCallback } from 'react';
+import ReactPlayer from 'react-player';
+
+interface ImprovedVideoPlayerProps {
+  url: string;
+  title: string;
+  onProgress?: (progress: { watched: number; duration: number; percent: number }) => void;
+  onVideoComplete?: () => void;
+  canMarkComplete?: boolean;
+  isCompleted?: boolean;
+  allowRewatch?: boolean;
+}
+
+const ImprovedVideoPlayer: React.FC<ImprovedVideoPlayerProps> = ({
+  url,
+  title: _title,
+  onProgress,
+  onVideoComplete,
+  canMarkComplete = false,
+  isCompleted = false,
+  allowRewatch = true
+}) => {
+  const [playing, setPlaying] = useState(false);
+  const [duration, setDuration] = useState(0);
+  const [watchedSeconds, setWatchedSeconds] = useState(0);
+  const [watchedPercent, setWatchedPercent] = useState(0);
+  const [hasWatched90Percent, setHasWatched90Percent] = useState(false);
+  const [playerReady, setPlayerReady] = useState(false);
+
+  const playerRef = useRef<any>(null);
+  const watchedSegments = useRef(new Set<number>());
+
+  const handleProgress = useCallback((state: any) => {
+    if (!playerReady || !duration) return;
+
+    const currentSecond = Math.floor(state.playedSeconds);
+    watchedSegments.current.add(currentSecond);
+
+    const totalWatchedSeconds = watchedSegments.current.size;
+    const percentWatched = Math.min((totalWatchedSeconds / duration) * 100, 100);
+
+    setWatchedSeconds(totalWatchedSeconds);
+    setWatchedPercent(percentWatched);
+
+    // Check if user has watched 90% of the video
+    if (percentWatched >= 90 && !hasWatched90Percent) {
+      setHasWatched90Percent(true);
+    }
+
+    // Call parent progress callback
+    onProgress?.({
+      watched: totalWatchedSeconds,
+      duration,
+      percent: percentWatched
+    });
+  }, [duration, hasWatched90Percent, onProgress, playerReady]);
+
+  const handleDuration = useCallback((duration: number) => {
+    setDuration(duration);
+  }, []);
+
+  const handleReady = useCallback(() => {
+    setPlayerReady(true);
+  }, []);
+
+  const handleMarkComplete = () => {
+    if (hasWatched90Percent && onVideoComplete) {
+      onVideoComplete();
+    }
+  };
+
+  const getProgressColor = () => {
+    if (watchedPercent >= 90) return 'bg-green-500';
+    if (watchedPercent >= 50) return 'bg-yellow-500';
+    return 'bg-blue-500';
+  };
+
+  const getProgressMessage = () => {
+    if (isCompleted) {
+      return '✅ Video completed! You can rewatch anytime.';
+    }
+    if (watchedPercent >= 90) {
+      return '🎉 Great! You\'ve watched enough to continue.';
+    }
+    if (watchedPercent >= 50) {
+      return '👍 Keep watching to unlock the activity.';
+    }
+    return '▶️ Watch the video to unlock the activity.';
+  };
+
+  return (
+    <div className="space-y-4">
+      {/* Video Player */}
+      <div className="relative aspect-video bg-black rounded-lg overflow-hidden">
+        {/* @ts-expect-error */}
+        <ReactPlayer
+          ref={playerRef}
+          url={url}
+          width="100%"
+          height="100%"
+          playing={playing}
+          controls={true}
+          onProgress={handleProgress}
+          onDuration={handleDuration}
+          onReady={handleReady}
+          onPlay={() => setPlaying(true)}
+          onPause={() => setPlaying(false)}
+          progressInterval={1000}
+          config={{
+            youtube: {
+              playerVars: {
+                modestbranding: 1,
+                rel: 0,
+                fs: 1,
+                cc_load_policy: 1,
+                iv_load_policy: 3,
+                enablejsapi: 1
+              }
+            }
+          } as any}
+        />
+
+        {/* Video completion overlay */}
+        {isCompleted && (
+          <div className="absolute top-4 right-4 bg-green-600 text-white px-3 py-1 rounded-full text-sm font-medium">
+            ✓ Completed
+          </div>
+        )}
+      </div>
+
+      {/* Progress Bar */}
+      <div className="space-y-2">
+        <div className="flex justify-between items-center text-sm">
+          <span className="font-medium text-gray-700">Progress</span>
+          <span className="text-gray-600">
+            {Math.round(watchedPercent)}% watched
+            {duration > 0 && (
+              <span className="ml-2 text-gray-400">
+                ({Math.round(watchedSeconds)}s / {Math.round(duration)}s)
+              </span>
+            )}
+          </span>
+        </div>
+
+        <div className="w-full bg-gray-200 rounded-full h-2">
+          <div
+            className={`h-2 rounded-full transition-all duration-300 ${getProgressColor()}`}
+            style={{ width: `${Math.min(watchedPercent, 100)}%` }}
+          />
+        </div>
+      </div>
+
+      {/* Progress Message */}
+      <div className={`p-3 rounded-md text-sm ${
+        isCompleted
+          ? 'bg-green-50 text-green-800 border border-green-200'
+          : watchedPercent >= 90
+          ? 'bg-green-50 text-green-800 border border-green-200'
+          : 'bg-blue-50 text-blue-800 border border-blue-200'
+      }`}>
+        {getProgressMessage()}
+      </div>
+
+      {/* Action Button */}
+      {canMarkComplete && !isCompleted && (
+        <button
+          onClick={handleMarkComplete}
+          disabled={!hasWatched90Percent}
+          className={`w-full py-3 px-4 rounded-md font-medium transition-colors ${
+            hasWatched90Percent
+              ? 'bg-green-600 text-white hover:bg-green-700'
+              : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+          }`}
+        >
+          {hasWatched90Percent
+            ? '✓ Mark Video as Complete'
+            : `Watch ${90 - Math.round(watchedPercent)}% more to continue`
+          }
+        </button>
+      )}
+
+      {/* Rewatch Option */}
+      {isCompleted && allowRewatch && (
+        <div className="text-center text-sm text-gray-600">
+          <span className="mr-2">Want to review?</span>
+          <button
+            onClick={() => {
+              setPlaying(true);
+              playerRef.current?.seekTo(0);
+            }}
+            className="text-blue-600 hover:text-blue-800 underline"
+          >
+            Rewatch Video
+          </button>
+        </div>
+      )}
+
+      {/* Debug Info (only in development) */}
+      {process.env.NODE_ENV === 'development' && (
+        <div className="text-xs text-gray-400 bg-gray-50 p-2 rounded">
+          Debug: Watched {watchedSegments.current.size} unique seconds out of {Math.round(duration)} total
+          | 90% threshold: {hasWatched90Percent ? '✓' : '✗'}
+        </div>
+      )}
+    </div>
+  );
+};
+
+export default ImprovedVideoPlayer;

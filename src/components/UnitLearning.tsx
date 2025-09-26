@@ -4,6 +4,8 @@ import { doc, updateDoc, arrayUnion, arrayRemove } from 'firebase/firestore';
 import { db } from '../firebase';
 import { useAuth } from '../contexts/AuthContext';
 import { useUnits } from '../hooks/useUnits';
+// import ImprovedVideoPlayer from './ImprovedVideoPlayer';
+import { getEmbeddableActivityUrl, getActivityInstructions } from '../utils/activityUrls';
 import type { UserProgress } from '../data/sampleUnits';
 
 const UnitLearning: React.FC = () => {
@@ -286,7 +288,7 @@ const UnitLearning: React.FC = () => {
                 <>
                   <div className="aspect-video">
                     <iframe
-                      src={unit.activityUrl}
+                      src={getEmbeddableActivityUrl(unit.activityUrl, unit.activityType)}
                       className="w-full h-full"
                       frameBorder="0"
                       allowFullScreen
@@ -298,7 +300,7 @@ const UnitLearning: React.FC = () => {
                     {!activityCompleted ? (
                       <div className="space-y-4">
                         <p className="text-sm text-gray-600 bg-blue-50 p-3 rounded-md">
-                          🎮 Complete the activity above, then click "I'm Done" when finished.
+                          🎮 {getActivityInstructions(unit.activityType)}
                         </p>
                         <button
                           onClick={handleActivityComplete}
