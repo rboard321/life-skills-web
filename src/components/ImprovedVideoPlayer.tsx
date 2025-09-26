@@ -30,7 +30,7 @@ const ImprovedVideoPlayer: React.FC<ImprovedVideoPlayerProps> = ({
   const playerRef = useRef<any>(null);
   const watchedSegments = useRef(new Set<number>());
 
-  const handleProgress = useCallback((state: any) => {
+  const handleProgress = useCallback((state: { played: number; playedSeconds: number; loaded: number; loadedSeconds: number }) => {
     if (!playerReady || !duration) return;
 
     const currentSecond = Math.floor(state.playedSeconds);
@@ -92,21 +92,20 @@ const ImprovedVideoPlayer: React.FC<ImprovedVideoPlayerProps> = ({
     <div className="space-y-4">
       {/* Video Player */}
       <div className="relative aspect-video bg-black rounded-lg overflow-hidden">
-        {/* @ts-expect-error */}
-        <ReactPlayer
-          ref={playerRef}
-          url={url}
-          width="100%"
-          height="100%"
-          playing={playing}
-          controls={true}
-          onProgress={handleProgress}
-          onDuration={handleDuration}
-          onReady={handleReady}
-          onPlay={() => setPlaying(true)}
-          onPause={() => setPlaying(false)}
-          progressInterval={1000}
-          config={{
+{React.createElement(ReactPlayer as any, {
+          ref: playerRef,
+          url: url,
+          width: "100%",
+          height: "100%",
+          playing: playing,
+          controls: true,
+          onProgress: handleProgress,
+          onDuration: handleDuration,
+          onReady: handleReady,
+          onPlay: () => setPlaying(true),
+          onPause: () => setPlaying(false),
+          progressInterval: 1000,
+          config: {
             youtube: {
               playerVars: {
                 modestbranding: 1,
@@ -117,8 +116,8 @@ const ImprovedVideoPlayer: React.FC<ImprovedVideoPlayerProps> = ({
                 enablejsapi: 1
               }
             }
-          } as any}
-        />
+          }
+        })}
 
         {/* Video completion overlay */}
         {isCompleted && (

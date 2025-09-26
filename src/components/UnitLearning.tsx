@@ -4,7 +4,7 @@ import { doc, updateDoc, arrayUnion, arrayRemove } from 'firebase/firestore';
 import { db } from '../firebase';
 import { useAuth } from '../contexts/AuthContext';
 import { useUnits } from '../hooks/useUnits';
-// import ImprovedVideoPlayer from './ImprovedVideoPlayer';
+import ImprovedVideoPlayer from './ImprovedVideoPlayer';
 import { getEmbeddableActivityUrl, getActivityInstructions } from '../utils/activityUrls';
 import type { UserProgress } from '../data/sampleUnits';
 
@@ -189,16 +189,6 @@ const UnitLearning: React.FC = () => {
       <div className="max-w-4xl mx-auto px-4 py-8">
         {currentStep === 'video' && (
           <div className="bg-white rounded-lg shadow-md overflow-hidden">
-            <div className="aspect-video">
-              <iframe
-                src={unit.videoUrl}
-                className="w-full h-full"
-                frameBorder="0"
-                allowFullScreen
-                title={unit.title}
-              ></iframe>
-            </div>
-
             <div className="p-6">
               <h2 className="text-xl font-semibold text-gray-900 mb-2">
                 Watch the Video
@@ -207,44 +197,25 @@ const UnitLearning: React.FC = () => {
                 {unit.description}
               </p>
 
-              {!videoWatched ? (
-                <div className="space-y-4">
-                  <p className="text-sm text-gray-600 bg-blue-50 p-3 rounded-md">
-                    📺 Watch the entire video to understand the concepts, then click "I'm Done Watching" to continue.
-                  </p>
-                  <button
-                    onClick={handleVideoComplete}
-                    disabled={saving}
-                    className="bg-blue-600 text-white px-6 py-3 rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
-                  >
-                    {saving ? (
-                      <>
-                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                        Saving...
-                      </>
-                    ) : (
-                      <>
-                        I'm Done Watching
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                        </svg>
-                      </>
-                    )}
-                  </button>
-                </div>
-              ) : (
-                <div className="bg-green-50 p-4 rounded-md">
-                  <div className="flex items-center gap-2 text-green-800 mb-2">
-                    <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
-                      <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                    </svg>
-                    <span className="font-medium">Video completed!</span>
-                  </div>
+              <ImprovedVideoPlayer
+                url={unit.videoUrl}
+                title={unit.title}
+                canMarkComplete={true}
+                isCompleted={videoWatched}
+                onVideoComplete={handleVideoComplete}
+                allowRewatch={true}
+              />
+
+              {videoWatched && (
+                <div className="mt-6">
                   <button
                     onClick={() => setCurrentStep('activity')}
-                    className="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 transition-colors"
+                    className="bg-green-600 text-white px-6 py-3 rounded-md hover:bg-green-700 transition-colors flex items-center gap-2"
                   >
                     Continue to Activity
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                    </svg>
                   </button>
                 </div>
               )}
