@@ -146,9 +146,12 @@ const UnitLearning: React.FC = () => {
       <div className="bg-white border-b">
         <div className="max-w-4xl mx-auto px-4 py-4">
           <div className="flex items-center justify-center gap-8">
-            <div className={`flex items-center gap-3 ${
-              currentStep === 'video' ? 'text-blue-600' : videoWatched ? 'text-green-600' : 'text-gray-400'
-            }`}>
+            <button
+              onClick={() => setCurrentStep('video')}
+              className={`flex items-center gap-3 hover:opacity-80 transition-opacity ${
+                currentStep === 'video' ? 'text-blue-600' : videoWatched ? 'text-green-600' : 'text-gray-400'
+              }`}
+            >
               <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold ${
                 videoWatched
                   ? 'bg-green-600 text-white'
@@ -159,17 +162,23 @@ const UnitLearning: React.FC = () => {
                 {videoWatched ? '✓' : '1'}
               </div>
               <span className="font-medium">Watch Video</span>
-            </div>
+            </button>
 
             <div className={`w-16 h-0.5 ${videoWatched ? 'bg-green-600' : 'bg-gray-300'}`}></div>
 
-            <div className={`flex items-center gap-3 ${
-              currentStep === 'activity'
-                ? activityCompleted
-                  ? 'text-green-600'
-                  : 'text-blue-600'
-                : 'text-gray-400'
-            }`}>
+            <button
+              onClick={() => videoWatched && setCurrentStep('activity')}
+              disabled={!videoWatched}
+              className={`flex items-center gap-3 transition-opacity ${
+                videoWatched ? 'hover:opacity-80' : 'cursor-not-allowed'
+              } ${
+                currentStep === 'activity'
+                  ? activityCompleted
+                    ? 'text-green-600'
+                    : 'text-blue-600'
+                  : 'text-gray-400'
+              }`}
+            >
               <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold ${
                 activityCompleted
                   ? 'bg-green-600 text-white'
@@ -180,7 +189,7 @@ const UnitLearning: React.FC = () => {
                 {activityCompleted ? '✓' : '2'}
               </div>
               <span className="font-medium">Complete Activity</span>
-            </div>
+            </button>
           </div>
         </div>
       </div>
@@ -247,12 +256,27 @@ const UnitLearning: React.FC = () => {
 
             <div className="bg-white rounded-lg shadow-md overflow-hidden">
               <div className="p-6 border-b">
-                <h2 className="text-xl font-semibold text-gray-900 mb-2">
-                  Interactive Activity
-                </h2>
-                <p className="text-gray-600">
-                  Complete this activity to test your understanding of the video content.
-                </p>
+                <div className="flex justify-between items-start">
+                  <div>
+                    <h2 className="text-xl font-semibold text-gray-900 mb-2">
+                      Interactive Activity
+                    </h2>
+                    <p className="text-gray-600">
+                      Complete this activity to test your understanding of the video content.
+                    </p>
+                  </div>
+                  {videoWatched && (
+                    <button
+                      onClick={() => setCurrentStep('video')}
+                      className="ml-4 bg-gray-100 hover:bg-gray-200 text-gray-700 px-4 py-2 rounded-md transition-colors flex items-center gap-2 text-sm"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                      </svg>
+                      Back to Video
+                    </button>
+                  )}
+                </div>
               </div>
 
               {videoWatched ? (
