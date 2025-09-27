@@ -52,6 +52,14 @@ const YouTubeProgressPlayer: React.FC<YouTubeProgressPlayerProps> = ({
 
   const videoId = extractVideoId(url);
 
+  console.log('YouTubeProgressPlayer Debug:', {
+    url,
+    videoId,
+    isAPILoaded,
+    isReady,
+    player: !!player
+  });
+
   // Load YouTube API
   useEffect(() => {
     if (window.YT && window.YT.Player) {
@@ -74,6 +82,13 @@ const YouTubeProgressPlayer: React.FC<YouTubeProgressPlayerProps> = ({
 
   // Initialize player when API is loaded
   useEffect(() => {
+    console.log('Player initialization check:', {
+      isAPILoaded,
+      videoId,
+      hasContainer: !!containerRef.current,
+      hasPlayer: !!player
+    });
+
     if (!isAPILoaded || !videoId || !containerRef.current || player) return;
 
     const newPlayer = new window.YT.Player(containerRef.current, {

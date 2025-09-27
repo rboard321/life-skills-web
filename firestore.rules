@@ -27,6 +27,14 @@ service cloud.firestore {
       allow read, write: if isAuthenticated() && request.auth.uid == userId;
       // Teachers can read all user data
       allow read: if isTeacher();
+
+      // Progress subcollection rules
+      match /progress/{progressId} {
+        // Users can read and write their own progress
+        allow read, write: if isAuthenticated() && request.auth.uid == userId;
+        // Teachers can read all progress data
+        allow read: if isTeacher();
+      }
     }
 
     // Test collection (for connection testing)
