@@ -302,14 +302,19 @@ const SimpleAdminPage: React.FC = () => {
                   placeholder="https://youtube.com/watch?v=..."
                   required
                 />
-                <p className="text-xs text-gray-500 mt-1">
-                  Any YouTube URL format (watch, share, embed, shorts)
-                </p>
-                {videoUrl && (
-                  <p className="text-xs text-blue-600 mt-1">
-                    Preview: {optimizeYouTubeUrl(videoUrl)}
+                <div className="mt-1 space-y-1">
+                  <p className="text-xs text-gray-500">
+                    Any YouTube URL format (watch, share, embed, shorts)
                   </p>
-                )}
+                  <p className="text-xs text-amber-600">
+                    ⚠️ Make sure the video is public and allows embedding
+                  </p>
+                  {videoUrl && (
+                    <p className="text-xs text-blue-600">
+                      Embed format: {optimizeYouTubeUrl(videoUrl)}
+                    </p>
+                  )}
+                </div>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -508,11 +513,19 @@ const SimpleAdminPage: React.FC = () => {
                       placeholder="https://youtube.com/watch?v=..."
                       required
                     />
-                    {editVideoUrl && (
-                      <p className="text-xs text-blue-600 mt-1">
-                        Preview: {optimizeYouTubeUrl(editVideoUrl)}
+                    <div className="mt-1 space-y-1">
+                      <p className="text-xs text-gray-500">
+                        Any YouTube URL format (watch, share, embed, shorts)
                       </p>
-                    )}
+                      <p className="text-xs text-amber-600">
+                        ⚠️ Make sure the video is public and allows embedding
+                      </p>
+                      {editVideoUrl && (
+                        <p className="text-xs text-blue-600">
+                          Embed format: {optimizeYouTubeUrl(editVideoUrl)}
+                        </p>
+                      )}
+                    </div>
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">

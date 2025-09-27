@@ -166,3 +166,16 @@ export const getYouTubeWatchUrl = (input: string): string => {
     return input;
   }
 };
+
+export const checkVideoEmbeddable = async (url: string): Promise<{ embeddable: boolean; message: string }> => {
+  try {
+    const embedUrl = optimizeYouTubeUrl(url);
+    await fetch(embedUrl, { method: 'HEAD', mode: 'no-cors' });
+    return { embeddable: true, message: 'Video appears to be embeddable' };
+  } catch (error) {
+    return {
+      embeddable: false,
+      message: 'Video may not be embeddable. Check that the video is public and allows embedding.'
+    };
+  }
+};

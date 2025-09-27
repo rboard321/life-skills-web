@@ -26,6 +26,8 @@ const ImprovedVideoPlayer: React.FC<ImprovedVideoPlayerProps> = ({
   const [watchedPercent, setWatchedPercent] = useState(0);
   const [hasWatched90Percent, setHasWatched90Percent] = useState(false);
   const [playerReady, setPlayerReady] = useState(false);
+  const [hasError, setHasError] = useState(false);
+  const [errorMessage, setErrorMessage] = useState('');
 
   const playerRef = useRef<any>(null);
   const watchedSegments = useRef(new Set<number>());
@@ -61,6 +63,14 @@ const ImprovedVideoPlayer: React.FC<ImprovedVideoPlayerProps> = ({
 
   const handleReady = useCallback(() => {
     setPlayerReady(true);
+    setHasError(false);
+    setErrorMessage('');
+  }, []);
+
+  const handleError = useCallback((error: any) => {
+    console.error('Video player error:', error);
+    setHasError(true);
+    setErrorMessage('This video cannot be embedded. It may be private, restricted, or have embedding disabled.');
   }, []);
 
   const handleMarkComplete = () => {
@@ -92,32 +102,55 @@ const ImprovedVideoPlayer: React.FC<ImprovedVideoPlayerProps> = ({
     <div className="space-y-4">
       {/* Video Player */}
       <div className="relative aspect-video bg-black rounded-lg overflow-hidden">
-{React.createElement(ReactPlayer as any, {
-          ref: playerRef,
-          url: url,
-          width: "100%",
-          height: "100%",
-          playing: playing,
-          controls: true,
-          onProgress: handleProgress,
-          onDuration: handleDuration,
-          onReady: handleReady,
-          onPlay: () => setPlaying(true),
-          onPause: () => setPlaying(false),
-          progressInterval: 1000,
-          config: {
-            youtube: {
-              playerVars: {
-                modestbranding: 1,
-                rel: 0,
-                fs: 1,
-                cc_load_policy: 1,
-                iv_load_policy: 3,
-                enablejsapi: 1
+{!hasError ? (
+          React.createElement(ReactPlayer as any, {
+            ref: playerRef,
+            url: url,
+            width: "100%",
+            height: "100%",
+            playing: playing,
+            controls: true,
+            onProgress: handleProgress,
+            onDuration: handleDuration,
+            onReady: handleReady,
+            onError: handleError,
+            onPlay: () => setPlaying(true),
+            onPause: () => setPlaying(false),
+            progressInterval: 1000,
+            config: {
+              youtube: {
+                playerVars: {
+                  modestbranding: 1,
+                  rel: 0,
+                  fs: 1,
+                  cc_load_policy: 1,
+                  iv_load_policy: 3,
+                  enablejsapi: 1
+                }
               }
             }
-          }
-        })}
+          })
+        ) : (
+          <div className="flex flex-col items-center justify-center h-full bg-gray-100 text-center p-8">
+            <div className="text-4xl mb-4">⚠️</div>
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">Video Cannot Be Played</h3>
+            <p className="text-gray-600 mb-4 max-w-md">{errorMessage}</p>
+            <div className="space-y-2 text-sm text-gray-500">
+              <p>This usually happens when:</p>
+              <ul className="list-disc list-inside space-y-1 text-left">
+                <li>The video has embedding disabled</li>
+                <li>The video is private or restricted</li>
+                <li>The video has been removed</li>
+              </ul>
+            </div>
+            <button
+              onClick={() => window.open(url.replace('/embed/', '/watch?v=').split('?')[0], '_blank')}
+              className="mt-4 bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 transition-colors"
+            >
+              Try Opening in YouTube
+            </button>
+          </div>
+        )}
 
         {/* Video completion overlay */}
         {isCompleted && (
