@@ -37,8 +37,16 @@ export const useUnits = (assignedOnly: boolean = false) => {
                                 activityUrl: docData.activityUrl || '',
                                 activityType: docData.activityType || 'h5p',
                                 order: docData.order || 1,
+                                isActive: docData.isActive,
+                                createdAt: docData.createdAt?.toDate?.() || docData.createdAt,
+                                updatedAt: docData.updatedAt?.toDate?.() || docData.updatedAt,
                             };
                         }) as Unit[];
+
+                        // Filter to only show active units for students
+                        if (role === 'student') {
+                            allUnits = allUnits.filter(unit => unit.isActive === true);
+                        }
                     }
                 } catch (firestoreError) {
                     console.warn('Firebase unavailable, using sample data:', firestoreError);

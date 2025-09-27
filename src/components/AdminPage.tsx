@@ -21,6 +21,7 @@ const AdminPage: React.FC = () => {
   const [unitTitle, setUnitTitle] = useState('');
   const [unitDescription, setUnitDescription] = useState('');
   const [unitOrder, setUnitOrder] = useState(1);
+  const [unitIsActive, setUnitIsActive] = useState(true);
 
   // Lesson creation state
   const [selectedUnitId, setSelectedUnitId] = useState<string>('');
@@ -36,6 +37,7 @@ const AdminPage: React.FC = () => {
   const [editUnitTitle, setEditUnitTitle] = useState('');
   const [editUnitDescription, setEditUnitDescription] = useState('');
   const [editUnitOrder, setEditUnitOrder] = useState(1);
+  const [editUnitIsActive, setEditUnitIsActive] = useState(true);
 
   const [expandedUnitId, setExpandedUnitId] = useState<string | null>(null);
 
@@ -124,7 +126,10 @@ const AdminPage: React.FC = () => {
       order: unitOrder,
       lessons: [],
       totalLessons: 0,
-      id: unitOrder
+      id: unitOrder,
+      isActive: unitIsActive,
+      createdAt: new Date(),
+      updatedAt: new Date()
     };
 
     try {
@@ -136,6 +141,7 @@ const AdminPage: React.FC = () => {
       // Reset form
       setUnitTitle('');
       setUnitDescription('');
+      setUnitIsActive(true);
 
       // Reload units
       await loadUnits();
@@ -206,6 +212,7 @@ const AdminPage: React.FC = () => {
     setEditUnitTitle(unit.title);
     setEditUnitDescription(unit.description || '');
     setEditUnitOrder(unit.order);
+    setEditUnitIsActive((unit as any).isActive ?? true);
   };
 
   const handleUpdateUnit = async (e: React.FormEvent) => {
@@ -216,7 +223,9 @@ const AdminPage: React.FC = () => {
       await updateDoc(unitDocRef, {
         title: editUnitTitle,
         description: editUnitDescription,
-        order: editUnitOrder
+        order: editUnitOrder,
+        isActive: editUnitIsActive,
+        updatedAt: new Date()
       });
       await loadUnits();
       setEditingUnitId(null);
@@ -412,6 +421,19 @@ const AdminPage: React.FC = () => {
                     rows={2}
                     placeholder="Brief description of this unit"
                   />
+                </div>
+
+                <div className="flex items-center">
+                  <input
+                    type="checkbox"
+                    id="unitIsActive"
+                    checked={unitIsActive}
+                    onChange={e => setUnitIsActive(e.target.checked)}
+                    className="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                  />
+                  <label htmlFor="unitIsActive" className="ml-2 block text-sm text-gray-700">
+                    Unit is Active (visible to students)
+                  </label>
                 </div>
 
                 <button
@@ -629,6 +651,18 @@ const AdminPage: React.FC = () => {
                               className="p-2 border rounded"
                               placeholder="Description"
                             />
+                          </div>
+                          <div className="flex items-center mt-2">
+                            <input
+                              type="checkbox"
+                              id={`editUnitIsActive-${editingUnitId}`}
+                              checked={editUnitIsActive}
+                              onChange={e => setEditUnitIsActive(e.target.checked)}
+                              className="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                            />
+                            <label htmlFor={`editUnitIsActive-${editingUnitId}`} className="ml-2 block text-sm text-gray-700">
+                              Unit is Active (visible to students)
+                            </label>
                           </div>
                           <div className="flex space-x-2">
                             <button type="submit" className="bg-green-600 text-white px-3 py-1 rounded">

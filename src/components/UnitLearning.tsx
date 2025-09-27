@@ -1,16 +1,17 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import { useOptimizedUnits } from '../hooks/useOptimizedUnits';
+import { useUnits } from '../hooks/useUnits';
 import ImprovedVideoPlayer from './ImprovedVideoPlayer';
 import { getEmbeddableActivityUrl, getActivityInstructions } from '../utils/activityUrls';
 import { optimizeYouTubeUrl } from '../utils/youtube';
+import { OptimizedProgressTracker } from '../utils/firebase-optimized';
 
 const UnitLearning: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { currentUser } = useAuth();
-  const { units, loading, userProgress, updateVideoProgress, completeActivity } = useOptimizedUnits(true);
+  const { units, loading, userProgress } = useUnits(true);
 
   const [currentStep, setCurrentStep] = useState<'video' | 'activity'>('video');
   const [videoWatched, setVideoWatched] = useState(false);
@@ -42,13 +43,15 @@ const UnitLearning: React.FC = () => {
 
     setSaving(true);
     try {
+      const progressTracker = new OptimizedProgressTracker(currentUser.uid);
+
       // Use the optimized progress tracking
       if (videoComplete && !videoWatched) {
-        await updateVideoProgress(unitId, 0, 100, true);
+        await progressTracker.updateVideoProgress(unitId, 0, 100, true);
       }
 
       if (activityComplete && !activityCompleted) {
-        await completeActivity(unitId, 1);
+        await progressTracker.completeActivity(unitId, 1);
       }
 
       setVideoWatched(videoComplete);
@@ -200,9 +203,10 @@ const UnitLearning: React.FC = () => {
                 onVideoComplete={handleVideoComplete}
                 allowRewatch={true}
                 onVideoProgressUpdate={async (watchedSeconds, totalSeconds) => {
-                  if (unitId) {
+                  if (unitId && currentUser) {
                     try {
-                      await updateVideoProgress(unitId, watchedSeconds, totalSeconds, false);
+                      const progressTracker = new OptimizedProgressTracker(currentUser.uid);
+                      await progressTracker.updateVideoProgress(unitId, watchedSeconds, totalSeconds, false);
                     } catch (error) {
                       console.error('Failed to update video progress:', error);
                     }
