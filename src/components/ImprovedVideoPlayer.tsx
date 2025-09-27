@@ -9,6 +9,7 @@ interface ImprovedVideoPlayerProps {
   canMarkComplete?: boolean;
   isCompleted?: boolean;
   allowRewatch?: boolean;
+  onVideoProgressUpdate?: (watchedSeconds: number, totalSeconds: number) => void;
 }
 
 const ImprovedVideoPlayer: React.FC<ImprovedVideoPlayerProps> = ({
@@ -18,7 +19,8 @@ const ImprovedVideoPlayer: React.FC<ImprovedVideoPlayerProps> = ({
   onVideoComplete,
   canMarkComplete = false,
   isCompleted = false,
-  allowRewatch = true
+  allowRewatch = true,
+  onVideoProgressUpdate
 }) => {
   const [playing, setPlaying] = useState(false);
   const [duration, setDuration] = useState(0);
@@ -55,7 +57,10 @@ const ImprovedVideoPlayer: React.FC<ImprovedVideoPlayerProps> = ({
       duration,
       percent: percentWatched
     });
-  }, [duration, hasWatched90Percent, onProgress, playerReady]);
+
+    // Update Firebase progress tracking
+    onVideoProgressUpdate?.(totalWatchedSeconds, duration);
+  }, [duration, hasWatched90Percent, onProgress, onVideoProgressUpdate, playerReady]);
 
   const handleDuration = useCallback((duration: number) => {
     setDuration(duration);

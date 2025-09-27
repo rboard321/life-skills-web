@@ -1,0 +1,74 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Helper functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isTeacher() {
+      return isAuthenticated() &&
+             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'teacher';
+    }
+
+    function isStudent() {
+      return isAuthenticated() &&
+             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'student';
+    }
+
+    // Users collection - users can read/write their own data
+    match /users/{userId} {
+      allow read, write: if isOwner(userId);
+
+      // Progress subcollection - users can read/write their own progress
+      match /progress/{unitId} {
+        allow read, write: if isOwner(userId);
+      }
+    }
+
+    // Units collection - read-only for students, write for teachers
+    match /units/{unitId} {
+      allow read: if isAuthenticated();
+      allow write: if isTeacher();
+    }
+
+    // Classes collection - teachers can manage their classes
+    match /classes/{classId} {
+      // Teachers can create classes and read/write their own classes
+      allow create: if isTeacher();
+      allow read, write: if isAuthenticated() &&
+                         resource.data.teacherId == request.auth.uid;
+
+      // Students subcollection within classes
+      match /students/{studentId} {
+        // Teachers can add/remove students from their classes
+        allow read, write: if isAuthenticated() &&
+                           get(/databases/$(database)/documents/classes/$(classId)).data.teacherId == request.auth.uid;
+
+        // Students can read their own membership status
+        allow read: if isOwner(studentId);
+      }
+    }
+
+    // Test collection for connection testing (temporary)
+    match /test/{document} {
+      allow read: if isAuthenticated();
+    }
+
+    // Analytics and logs (teacher-only)
+    match /analytics/{document} {
+      allow read, write: if isTeacher();
+    }
+
+    // System settings (teacher-only)
+    match /settings/{document} {
+      allow read: if isAuthenticated();
+      allow write: if isTeacher();
+    }
+  }
+}

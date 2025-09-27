@@ -1,19 +1,16 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { doc, updateDoc, arrayUnion, arrayRemove } from 'firebase/firestore';
-import { db } from '../firebase';
 import { useAuth } from '../contexts/AuthContext';
-import { useUnits } from '../hooks/useUnits';
+import { useOptimizedUnits } from '../hooks/useOptimizedUnits';
 import ImprovedVideoPlayer from './ImprovedVideoPlayer';
 import { getEmbeddableActivityUrl, getActivityInstructions } from '../utils/activityUrls';
 import { optimizeYouTubeUrl } from '../utils/youtube';
-import type { UserProgress } from '../data/sampleUnits';
 
 const UnitLearning: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { currentUser } = useAuth();
-  const { units, loading, userProgress } = useUnits(true);
+  const { units, loading, userProgress, updateVideoProgress, completeActivity } = useOptimizedUnits(true);
 
   const [currentStep, setCurrentStep] = useState<'video' | 'activity'>('video');
   const [videoWatched, setVideoWatched] = useState(false);
@@ -45,26 +42,14 @@ const UnitLearning: React.FC = () => {
 
     setSaving(true);
     try {
-      const userDocRef = doc(db, 'users', currentUser.uid);
-
-      // Remove existing progress for this unit
-      if (progress) {
-        await updateDoc(userDocRef, {
-          completedUnits: arrayRemove(progress)
-        });
+      // Use the optimized progress tracking
+      if (videoComplete && !videoWatched) {
+        await updateVideoProgress(unitId, 0, 100, true);
       }
 
-      // Add new progress
-      const newProgress: UserProgress = {
-        unitId,
-        completedVideo: videoComplete,
-        completedActivity: activityComplete,
-        ...(activityComplete && { completedAt: new Date() })
-      };
-
-      await updateDoc(userDocRef, {
-        completedUnits: arrayUnion(newProgress)
-      });
+      if (activityComplete && !activityCompleted) {
+        await completeActivity(unitId, 1);
+      }
 
       setVideoWatched(videoComplete);
       setActivityCompleted(activityComplete);
@@ -214,6 +199,15 @@ const UnitLearning: React.FC = () => {
                 isCompleted={videoWatched}
                 onVideoComplete={handleVideoComplete}
                 allowRewatch={true}
+                onVideoProgressUpdate={async (watchedSeconds, totalSeconds) => {
+                  if (unitId) {
+                    try {
+                      await updateVideoProgress(unitId, watchedSeconds, totalSeconds, false);
+                    } catch (error) {
+                      console.error('Failed to update video progress:', error);
+                    }
+                  }
+                }}
               />
 
               {videoWatched && (

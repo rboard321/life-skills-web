@@ -16,14 +16,23 @@ export type Unit = {
   activityUrl: string;
   activityType: 'h5p' | 'wordwall';
   order: number;
+  isActive?: boolean;
+  createdAt?: Date;
+  updatedAt?: Date;
 };
 
-// User progress tracking
+// User progress tracking (legacy - use UserProgressData from firebase-optimized.ts for new implementation)
 export type UserProgress = {
   unitId: number;
   completedVideo: boolean;
   completedActivity: boolean;
   completedAt?: Date;
+  videoProgress?: {
+    watchedSeconds: number;
+    totalSeconds: number;
+    percentWatched: number;
+  };
+  activityAttempts?: number;
 };
 
 // User model for assignment system
@@ -67,6 +76,9 @@ export const sampleUnits: Unit[] = [
     activityUrl: 'https://h5p.org/h5p/embed/27611',
     activityType: 'h5p',
     order: 1,
+    isActive: true,
+    createdAt: new Date('2024-01-01'),
+    updatedAt: new Date('2024-01-01'),
   },
   {
     id: 2,
@@ -76,6 +88,9 @@ export const sampleUnits: Unit[] = [
     activityUrl: 'https://wordwall.net/embed/b823729c3f42439ebcb5308bbf9e004f?themeId=55&templateId=79&fontStackId=12',
     activityType: 'wordwall',
     order: 2,
+    isActive: true,
+    createdAt: new Date('2024-01-01'),
+    updatedAt: new Date('2024-01-01'),
   },
   {
     id: 3,
@@ -85,6 +100,9 @@ export const sampleUnits: Unit[] = [
     activityUrl: 'https://h5p.org/h5p/embed/27611',
     activityType: 'h5p',
     order: 3,
+    isActive: true,
+    createdAt: new Date('2024-01-01'),
+    updatedAt: new Date('2024-01-01'),
   },
   {
     id: 4,
@@ -94,6 +112,9 @@ export const sampleUnits: Unit[] = [
     activityUrl: 'https://wordwall.net/embed/b823729c3f42439ebcb5308bbf9e004f?themeId=55&templateId=79&fontStackId=12',
     activityType: 'wordwall',
     order: 4,
+    isActive: true,
+    createdAt: new Date('2024-01-01'),
+    updatedAt: new Date('2024-01-01'),
   },
   {
     id: 5,
@@ -103,6 +124,9 @@ export const sampleUnits: Unit[] = [
     activityUrl: 'https://h5p.org/h5p/embed/27611',
     activityType: 'h5p',
     order: 5,
+    isActive: true,
+    createdAt: new Date('2024-01-01'),
+    updatedAt: new Date('2024-01-01'),
   }
 ];
 
