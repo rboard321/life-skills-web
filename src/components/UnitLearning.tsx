@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useUnits } from '../hooks/useUnits';
-import SimpleVideoPlayer from './SimpleVideoPlayer';
+import YouTubeProgressPlayer from './YouTubeProgressPlayer';
 import { getEmbeddableActivityUrl, getActivityInstructions } from '../utils/activityUrls';
 import { optimizeYouTubeUrl } from '../utils/youtube';
 import { OptimizedProgressTracker } from '../utils/firebase-optimized';
@@ -16,6 +16,8 @@ const UnitLearning: React.FC = () => {
   const [currentStep, setCurrentStep] = useState<'video' | 'activity'>('video');
   const [videoWatched, setVideoWatched] = useState(false);
   const [activityCompleted, setActivityCompleted] = useState(false);
+  const [activityUnlocked, setActivityUnlocked] = useState(false);
+  const [videoProgress, setVideoProgress] = useState(0);
   const [saving, setSaving] = useState(false);
 
   const unitId = id ? parseInt(id, 10) : null;
@@ -23,20 +25,43 @@ const UnitLearning: React.FC = () => {
   const progress = userProgress.find(p => p.unitId === unitId);
 
   useEffect(() => {
-    if (progress) {
-      setVideoWatched(progress.completedVideo);
-      setActivityCompleted(progress.completedActivity);
+    const loadUserProgress = async () => {
+      if (progress) {
+        setVideoWatched(progress.completedVideo);
+        setActivityCompleted(progress.completedActivity);
+        setActivityUnlocked(progress.completedVideo); // Legacy fallback
+        setVideoProgress(progress.videoProgress?.percentWatched || 0);
+      }
+
+      // Load detailed progress from Firestore if available
+      if (currentUser && unitId) {
+        try {
+          const progressTracker = new OptimizedProgressTracker(currentUser.uid);
+          const detailedProgress = await progressTracker.getUserProgress(unitId);
+
+          if (detailedProgress) {
+            setVideoWatched(detailedProgress.completedVideo);
+            setActivityCompleted(detailedProgress.completedActivity);
+            setActivityUnlocked(detailedProgress.unlockedActivity || detailedProgress.completedVideo);
+            setVideoProgress(detailedProgress.videoProgress?.percentWatched || 0);
+          }
+        } catch (error) {
+          console.error('Error loading detailed progress:', error);
+        }
+      }
 
       // Set current step based on progress
-      if (progress.completedActivity) {
+      if (progress?.completedActivity) {
         setCurrentStep('activity'); // Show completed activity
-      } else if (progress.completedVideo) {
-        setCurrentStep('activity'); // Video done, move to activity
+      } else if (activityUnlocked) {
+        setCurrentStep('video'); // Stay on video, but activity is unlocked
       } else {
         setCurrentStep('video'); // Start with video
       }
-    }
-  }, [progress]);
+    };
+
+    loadUserProgress();
+  }, [progress, currentUser, unitId, activityUnlocked]);
 
   const updateUserProgress = async (videoComplete: boolean, activityComplete: boolean) => {
     if (!currentUser || !unitId) return;
@@ -66,8 +91,30 @@ const UnitLearning: React.FC = () => {
   };
 
   const handleVideoComplete = async () => {
+    setVideoWatched(true);
+    setActivityUnlocked(true);
     await updateUserProgress(true, activityCompleted);
-    setCurrentStep('activity');
+    // Don't auto-navigate to activity - let user choose when to continue
+  };
+
+  // Handle real-time progress updates from the YouTube player
+  const handleProgressUpdate = async (watchedSeconds: number, totalSeconds: number, percentWatched: number) => {
+    if (!currentUser || !unitId) return;
+
+    setVideoProgress(percentWatched);
+
+    // Auto-unlock activity at 90%
+    if (percentWatched >= 90 && !activityUnlocked) {
+      setActivityUnlocked(true);
+    }
+
+    // Update progress in database
+    try {
+      const progressTracker = new OptimizedProgressTracker(currentUser.uid);
+      await progressTracker.updateVideoProgress(unitId, watchedSeconds, totalSeconds, percentWatched >= 100);
+    } catch (error) {
+      console.error('Failed to update video progress:', error);
+    }
   };
 
   const handleActivityComplete = async () => {
@@ -195,50 +242,87 @@ const UnitLearning: React.FC = () => {
                 {unit.description}
               </p>
 
-              <SimpleVideoPlayer
+              <YouTubeProgressPlayer
                 url={optimizeYouTubeUrl(unit.videoUrl)}
                 title={unit.title}
                 canMarkComplete={true}
                 isCompleted={videoWatched}
                 onVideoComplete={handleVideoComplete}
+                onProgressUpdate={handleProgressUpdate}
                 allowRewatch={true}
+                currentProgress={videoProgress}
               />
 
-              {videoWatched && (
-                <div className="mt-6">
+              {/* Activity Button with Smart States */}
+              <div className="mt-6">
+                {activityUnlocked || videoWatched ? (
                   <button
                     onClick={() => setCurrentStep('activity')}
-                    className="bg-green-600 text-white px-6 py-3 rounded-md hover:bg-green-700 transition-colors flex items-center gap-2"
+                    className="bg-green-600 text-white px-6 py-3 rounded-md hover:bg-green-700 transition-colors flex items-center gap-2 w-full justify-center"
                   >
-                    Continue to Activity
+                    {activityCompleted ? '🔄 Redo Activity' : '🎯 Continue to Activity'}
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                     </svg>
                   </button>
-                </div>
-              )}
+                ) : (
+                  <div className="space-y-3">
+                    <button
+                      disabled
+                      className="bg-gray-400 text-white px-6 py-3 rounded-md cursor-not-allowed flex items-center gap-2 w-full justify-center opacity-60"
+                    >
+                      🔒 Activity Locked
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                      </svg>
+                    </button>
+
+                    {/* Progress-based messaging */}
+                    <div className="text-center text-sm">
+                      {videoProgress >= 75 ? (
+                        <p className="text-yellow-600">
+                          🎯 <strong>Almost there!</strong> Watch {90 - Math.round(videoProgress)}% more to unlock the activity.
+                        </p>
+                      ) : videoProgress >= 50 ? (
+                        <p className="text-blue-600">
+                          👍 <strong>Halfway done!</strong> Keep watching to unlock the activity.
+                        </p>
+                      ) : videoProgress >= 25 ? (
+                        <p className="text-blue-600">
+                          📺 <strong>Good progress!</strong> Continue watching to reach 90%.
+                        </p>
+                      ) : (
+                        <p className="text-gray-600">
+                          ▶️ <strong>Watch 90% of the video</strong> to unlock the activity.
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         )}
 
         {currentStep === 'activity' && (
           <div className="space-y-6">
-            {!videoWatched && (
-              <div className="bg-yellow-50 border border-yellow-200 rounded-md p-4">
-                <div className="flex items-center gap-2 text-yellow-800 mb-1">
+            {!activityUnlocked && !videoWatched && (
+              <div className="bg-red-50 border border-red-200 rounded-md p-4">
+                <div className="flex items-center gap-2 text-red-800 mb-1">
                   <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
-                    <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
                   </svg>
-                  <span className="font-medium">Complete the video first</span>
+                  <span className="font-medium">Activity Locked</span>
                 </div>
-                <p className="text-sm text-yellow-700">
-                  You need to watch the video before you can access the activity.
+                <p className="text-sm text-red-700">
+                  You need to watch at least 90% of the video to unlock this activity.
+                  Current progress: <strong>{Math.round(videoProgress)}%</strong>
                 </p>
                 <button
                   onClick={() => setCurrentStep('video')}
-                  className="mt-2 text-yellow-800 hover:text-yellow-900 underline text-sm"
+                  className="mt-2 bg-red-100 text-red-800 hover:bg-red-200 px-3 py-1 rounded text-sm transition-colors"
                 >
-                  Go back to video
+                  ← Go back to video
                 </button>
               </div>
             )}

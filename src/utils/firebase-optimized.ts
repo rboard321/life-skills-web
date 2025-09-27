@@ -30,6 +30,7 @@ export interface UserProgressData {
   unitId: number;
   completedVideo: boolean;
   completedActivity: boolean;
+  unlockedActivity: boolean; // New field for 90% threshold
   completedAt?: Date;
   videoProgress?: {
     watchedSeconds: number;
@@ -79,6 +80,7 @@ export class OptimizedProgressTracker {
       unitId,
       completedVideo: false,
       completedActivity: false,
+      unlockedActivity: false,
       ...updates,
     };
 
@@ -104,9 +106,11 @@ export class OptimizedProgressTracker {
     completed: boolean = false
   ): Promise<void> {
     const percentWatched = Math.min(100, (watchedSeconds / totalSeconds) * 100);
+    const hasReached90 = percentWatched >= 90 || completed;
 
     await this.updateProgress(unitId, {
       completedVideo: completed,
+      unlockedActivity: hasReached90, // Auto-unlock at 90%
       videoProgress: {
         watchedSeconds,
         totalSeconds,
@@ -121,6 +125,22 @@ export class OptimizedProgressTracker {
       completedActivity: true,
       activityAttempts: attempts
     });
+  }
+
+  // Get user progress for a specific unit
+  async getUserProgress(unitId: number): Promise<UserProgressData | null> {
+    try {
+      const progressRef = doc(db, 'users', this.userId, 'progress', unitId.toString());
+      const progressSnap = await getDoc(progressRef);
+
+      if (progressSnap.exists()) {
+        return progressSnap.data() as UserProgressData;
+      }
+      return null;
+    } catch (error) {
+      console.error('Error getting user progress:', error);
+      return null;
+    }
   }
 
   // Get progress for specific unit
@@ -380,6 +400,7 @@ export class MigrationUtils {
         unitId: progress.unitId,
         completedVideo: progress.completedVideo || false,
         completedActivity: progress.completedActivity || false,
+        unlockedActivity: progress.completedVideo || false,
         completedAt: progress.completedAt && typeof progress.completedAt === 'object' && 'toDate' in progress.completedAt
           ? progress.completedAt.toDate?.()
           : progress.completedAt instanceof Date
