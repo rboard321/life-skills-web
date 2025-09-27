@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { collection, addDoc, getDocs, doc, deleteDoc, updateDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 import type { Unit } from '../data/sampleUnits';
-import { optimizeYouTubeUrl } from '../utils/youtube';
+import { optimizeYouTubeUrl, getYouTubeWatchUrl } from '../utils/youtube';
 
 interface FirebaseUnit extends Unit {
   docId: string;
@@ -415,7 +415,7 @@ const SimpleAdminPage: React.FC = () => {
                       </div>
                       <div className="flex gap-2 ml-4">
                         <button
-                          onClick={() => window.open(unit.videoUrl, '_blank')}
+                          onClick={() => window.open(getYouTubeWatchUrl(unit.videoUrl), '_blank')}
                           className="text-blue-600 hover:text-blue-800 text-sm underline"
                         >
                           Preview Video
