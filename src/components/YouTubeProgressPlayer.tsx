@@ -117,10 +117,18 @@ const YouTubeProgressPlayer: React.FC<YouTubeProgressPlayerProps> = ({
           }
         },
         onStateChange: (event: any) => {
+          console.log('YouTube player state changed:', event.data, {
+            PLAYING: window.YT.PlayerState.PLAYING,
+            PAUSED: window.YT.PlayerState.PAUSED,
+            ENDED: window.YT.PlayerState.ENDED
+          });
+
           if (event.data === window.YT.PlayerState.PLAYING) {
+            console.log('🎮 Video started playing - starting progress tracking');
             setIsPlaying(true);
             startProgressTracking();
           } else {
+            console.log('⏸️ Video paused/stopped - stopping progress tracking');
             setIsPlaying(false);
             stopProgressTracking();
           }
@@ -144,6 +152,12 @@ const YouTubeProgressPlayer: React.FC<YouTubeProgressPlayerProps> = ({
 
   // Progress tracking
   const startProgressTracking = useCallback(() => {
+    console.log('startProgressTracking called', {
+      hasExistingInterval: !!progressIntervalRef.current,
+      player: !!player,
+      duration
+    });
+
     if (progressIntervalRef.current) return;
 
     progressIntervalRef.current = setInterval(() => {
