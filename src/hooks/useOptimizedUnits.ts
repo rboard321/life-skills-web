@@ -150,7 +150,7 @@ export const useOptimizedUnits = (assignedOnly: boolean = false): UseOptimizedUn
     if (!progressTracker) {
       throw new Error('Progress tracker not initialized');
     }
-    await progressTracker.updateVideoProgress(unitId, watchedSeconds, totalSeconds, completed);
+    await progressTracker.updateVideoProgress(unitId, watchedSeconds, totalSeconds, watchedSeconds, [], completed);
   }, [progressTracker]);
 
   const completeActivity = useCallback(async (unitId: number, attempts: number = 1) => {

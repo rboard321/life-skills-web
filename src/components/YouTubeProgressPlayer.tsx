@@ -31,17 +31,29 @@ const YouTubeProgressPlayer: React.FC<YouTubeProgressPlayerProps> = ({
 }) => {
   const playerRef = useRef<any>(null);
   const containerRef = useRef<HTMLDivElement>(null);
-  const progressIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   const [player, setPlayer] = useState<any>(null);
   const [isReady, setIsReady] = useState(false);
   const [duration, setDuration] = useState(0);
-  const [_watchedSeconds, setWatchedSeconds] = useState(0);
+  const [totalWatchedTime, setTotalWatchedTime] = useState(0);
   const [percentWatched, setPercentWatched] = useState(currentProgress);
   const [hasReached90, setHasReached90] = useState(currentProgress >= 90);
-  const [_isPlaying, setIsPlaying] = useState(false);
+  const [isPlaying, setIsPlaying] = useState(false);
   const [hasError, setHasError] = useState(false);
   const [isAPILoaded, setIsAPILoaded] = useState(false);
+
+  // Event-based tracking state
+  const [playStartTime, setPlayStartTime] = useState<number | null>(null);
+  const [milestonesReached, setMilestonesReached] = useState<Set<number>>(() => {
+    // Initialize milestones based on current progress
+    const milestones = new Set<number>();
+    if (currentProgress >= 25) milestones.add(25);
+    if (currentProgress >= 50) milestones.add(50);
+    if (currentProgress >= 75) milestones.add(75);
+    if (currentProgress >= 90) milestones.add(90);
+    return milestones;
+  });
+  const [_lastPosition, setLastPosition] = useState(0);
 
   // Extract video ID from YouTube URL
   const extractVideoId = useCallback((videoUrl: string): string | null => {
@@ -57,7 +69,11 @@ const YouTubeProgressPlayer: React.FC<YouTubeProgressPlayerProps> = ({
     videoId,
     isAPILoaded,
     isReady,
-    player: !!player
+    player: !!player,
+    totalWatchedTime: Math.round(totalWatchedTime),
+    percentWatched: Math.round(percentWatched),
+    milestonesReached: Array.from(milestonesReached),
+    isPlaying
   });
 
   // Load YouTube API
@@ -123,17 +139,20 @@ const YouTubeProgressPlayer: React.FC<YouTubeProgressPlayerProps> = ({
           console.log('YouTube player state changed:', event.data, {
             PLAYING: window.YT.PlayerState.PLAYING,
             PAUSED: window.YT.PlayerState.PAUSED,
-            ENDED: window.YT.PlayerState.ENDED
+            ENDED: window.YT.PlayerState.ENDED,
+            BUFFERING: window.YT.PlayerState.BUFFERING,
+            CUED: window.YT.PlayerState.CUED
           });
 
           if (event.data === window.YT.PlayerState.PLAYING) {
-            console.log('🎮 Video started playing - starting progress tracking');
-            setIsPlaying(true);
-            startProgressTracking();
-          } else {
-            console.log('⏸️ Video paused/stopped - stopping progress tracking');
-            setIsPlaying(false);
-            stopProgressTracking();
+            handlePlayStart();
+          } else if (event.data === window.YT.PlayerState.PAUSED ||
+                     event.data === window.YT.PlayerState.BUFFERING ||
+                     event.data === window.YT.PlayerState.CUED) {
+            handlePlayEnd();
+          } else if (event.data === window.YT.PlayerState.ENDED) {
+            handlePlayEnd(); // Capture any remaining watch time
+            handleVideoEnd(); // Mark as complete
           }
         },
         onError: () => {
@@ -145,92 +164,167 @@ const YouTubeProgressPlayer: React.FC<YouTubeProgressPlayerProps> = ({
     playerRef.current = newPlayer;
 
     return () => {
-      stopProgressTracking();
+      // Capture any remaining watch time before cleanup
+      if (isPlaying && playerRef.current && playStartTime !== null) {
+        try {
+          const currentTime = playerRef.current.getCurrentTime();
+          const sessionWatchTime = Math.max(0, currentTime - playStartTime);
+          const newTotalWatchTime = totalWatchedTime + sessionWatchTime;
+
+          console.log('⚠️ Cleanup: capturing remaining watch time:', Math.round(sessionWatchTime));
+          setTotalWatchedTime(newTotalWatchTime);
+        } catch (error) {
+          console.error('Error during cleanup:', error);
+        }
+      }
+
       if (playerRef.current) {
         playerRef.current.destroy();
         playerRef.current = null;
       }
     };
-  }, [isAPILoaded, videoId, currentProgress]);
+  }, [isAPILoaded, videoId, currentProgress, isPlaying, playStartTime, totalWatchedTime]);
 
-  // Progress tracking
-  const startProgressTracking = useCallback(() => {
-    console.log('startProgressTracking called', {
-      hasExistingInterval: !!progressIntervalRef.current,
-      playerRef: !!playerRef.current,
-      playerState: !!player,
-      duration
-    });
+  // Event-based progress tracking
+  const handlePlayStart = useCallback(() => {
+    if (!playerRef.current) return;
 
-    if (progressIntervalRef.current) return;
+    try {
+      const currentTime = playerRef.current.getCurrentTime();
+      setPlayStartTime(currentTime);
+      setLastPosition(currentTime);
+      setIsPlaying(true);
 
-    progressIntervalRef.current = setInterval(() => {
-      // Get current values directly from the player ref
-      const currentPlayer = playerRef.current;
-      if (currentPlayer && currentPlayer.getDuration) {
-        try {
-          // Check if player is still valid and playing
-          const playerState = currentPlayer.getPlayerState?.();
-          if (playerState !== 1) { // Not playing
-            console.log('Player not playing, skipping progress update');
-            return;
-          }
-
-          const currentTime = currentPlayer.getCurrentTime();
-          const videoDuration = currentPlayer.getDuration();
-
-          if (videoDuration > 0 && currentTime >= 0) {
-            const percent = Math.min(100, (currentTime / videoDuration) * 100);
-
-            setWatchedSeconds(currentTime);
-            setPercentWatched(percent);
-            setDuration(videoDuration);
-
-            // Check if reached 90%
-            if (percent >= 90 && !hasReached90) {
-              setHasReached90(true);
-              if (onVideoComplete) {
-                onVideoComplete();
-              }
-            }
-
-            // Call progress update callback
-            if (onProgressUpdate) {
-              onProgressUpdate(currentTime, videoDuration, percent);
-            }
-
-            // Debug logging
-            console.log('Video Progress:', {
-              currentTime: Math.round(currentTime),
-              duration: Math.round(videoDuration),
-              percent: Math.round(percent),
-              hasReached90
-            });
-          }
-        } catch (error) {
-          console.error('Error getting video progress:', error);
-          // Stop tracking if we get repeated errors
-          stopProgressTracking();
-        }
-      } else {
-        console.log('Player not ready for progress tracking');
-      }
-    }, 5000); // Update every 5 seconds
-  }, [hasReached90, onVideoComplete, onProgressUpdate]);
-
-  const stopProgressTracking = useCallback(() => {
-    if (progressIntervalRef.current) {
-      clearInterval(progressIntervalRef.current);
-      progressIntervalRef.current = null;
+      console.log('▶️ Video play started at:', Math.round(currentTime), 'seconds');
+    } catch (error) {
+      console.error('Error getting play start time:', error);
     }
   }, []);
 
-  // Manual complete handler
-  const handleManualComplete = () => {
-    setHasReached90(true);
+  const handlePlayEnd = useCallback(() => {
+    if (!playerRef.current || playStartTime === null) return;
+
+    try {
+      const currentTime = playerRef.current.getCurrentTime();
+      const videoDuration = playerRef.current.getDuration();
+
+      // Calculate time watched in this play session
+      const sessionWatchTime = Math.max(0, currentTime - playStartTime);
+      const newTotalWatchTime = totalWatchedTime + sessionWatchTime;
+
+      setTotalWatchedTime(newTotalWatchTime);
+      setPlayStartTime(null);
+      setIsPlaying(false);
+      setLastPosition(currentTime);
+
+      // Calculate progress percentage
+      const percent = videoDuration > 0 ? Math.min(100, (newTotalWatchTime / videoDuration) * 100) : 0;
+      setPercentWatched(percent);
+
+      console.log('⏸️ Video paused/stopped. Session watch time:', Math.round(sessionWatchTime), 'Total watched:', Math.round(newTotalWatchTime), 'Progress:', Math.round(percent) + '%');
+
+      // Check milestones and update database
+      checkMilestonesAndUpdate(newTotalWatchTime, videoDuration, currentTime);
+
+    } catch (error) {
+      console.error('Error calculating watch time:', error);
+    }
+  }, [playStartTime, totalWatchedTime]);
+
+  const checkMilestonesAndUpdate = useCallback(async (watchedTime: number, videoDuration: number, _currentPosition: number) => {
+    if (!videoDuration || videoDuration <= 0) return;
+
+    const percent = Math.min(100, (watchedTime / videoDuration) * 100);
+    const milestones = [25, 50, 75, 90];
+
+    // Check which new milestones have been reached
+    const newMilestones = milestones.filter(milestone =>
+      percent >= milestone && !milestonesReached.has(milestone)
+    );
+
+    if (newMilestones.length > 0) {
+      console.log('🎯 New milestones reached:', newMilestones);
+
+      // Update milestones state
+      const updatedMilestones = new Set([...milestonesReached, ...newMilestones]);
+      setMilestonesReached(updatedMilestones);
+
+      // Check for 90% completion
+      if (newMilestones.includes(90) && !hasReached90) {
+        setHasReached90(true);
+        if (onVideoComplete) {
+          onVideoComplete();
+        }
+      }
+
+      // Update database with progress
+      if (onProgressUpdate) {
+        onProgressUpdate(watchedTime, videoDuration, percent);
+      }
+    }
+  }, [milestonesReached, hasReached90, onVideoComplete, onProgressUpdate]);
+
+  const handleVideoEnd = useCallback(() => {
+    console.log('🏁 Video ended - marking as 100% complete');
+
+    // Mark as fully watched
     setPercentWatched(100);
+    setHasReached90(true);
+
     if (onVideoComplete) {
       onVideoComplete();
+    }
+
+    // Final progress update
+    if (onProgressUpdate && duration > 0) {
+      onProgressUpdate(duration, duration, 100);
+    }
+  }, [duration, onVideoComplete, onProgressUpdate]);
+
+  // Manual complete handler with enhanced progress tracking
+  const handleManualComplete = () => {
+    console.log('🔧 Manual completion triggered');
+
+    // Set to 100% progress
+    setHasReached90(true);
+    setPercentWatched(100);
+    setTotalWatchedTime(duration > 0 ? duration : 100); // Use full duration or fallback
+
+    // Update milestones to include all
+    setMilestonesReached(new Set([25, 50, 75, 90]));
+
+    if (onVideoComplete) {
+      onVideoComplete();
+    }
+
+    // Trigger final progress update with manual completion
+    if (onProgressUpdate && duration > 0) {
+      onProgressUpdate(duration, duration, 100);
+    }
+  };
+
+  // Manual milestone trigger (for testing or backup)
+  const handleManualMilestone = (milestone: number) => {
+    console.log('🎯 Manual milestone triggered:', milestone + '%');
+
+    const newMilestones = new Set([...milestonesReached]);
+    newMilestones.add(milestone);
+    setMilestonesReached(newMilestones);
+
+    if (milestone >= 90) {
+      setHasReached90(true);
+      if (onVideoComplete) {
+        onVideoComplete();
+      }
+    }
+
+    // Update progress to match milestone
+    const progressPercent = Math.max(percentWatched, milestone);
+    setPercentWatched(progressPercent);
+
+    if (duration > 0 && onProgressUpdate) {
+      const watchedTime = (progressPercent / 100) * duration;
+      onProgressUpdate(watchedTime, duration, progressPercent);
     }
   };
 
@@ -242,19 +336,26 @@ const YouTubeProgressPlayer: React.FC<YouTubeProgressPlayerProps> = ({
     return 'bg-gray-300';
   };
 
-  // Progress message
+  // Enhanced progress message with milestone tracking
   const getProgressMessage = () => {
     if (isCompleted || hasReached90) {
       return '✅ Video completed! Activity unlocked.';
     }
+
+    const reachedMilestones = Array.from(milestonesReached).sort((a, b) => b - a);
+    const nextMilestone = [25, 50, 75, 90].find(m => !milestonesReached.has(m));
+
     if (percentWatched >= 75) {
-      return '🎯 Almost there! Keep watching to unlock the activity.';
+      return `🎯 Almost there! ${90 - Math.round(percentWatched)}% more to unlock the activity.`;
     }
     if (percentWatched >= 50) {
-      return '👍 Halfway done! Continue watching.';
+      return `👍 Halfway done! Next milestone: ${nextMilestone || 90}%`;
     }
     if (percentWatched >= 25) {
-      return '▶️ Good progress! Keep going.';
+      return `▶️ Good progress! Next milestone: ${nextMilestone || 90}%`;
+    }
+    if (reachedMilestones.length > 0) {
+      return `📊 Progress saved! Last milestone: ${reachedMilestones[0]}%. Keep watching!`;
     }
     return '▶️ Watch at least 90% to unlock the activity.';
   };
@@ -334,18 +435,46 @@ const YouTubeProgressPlayer: React.FC<YouTubeProgressPlayerProps> = ({
         </div>
       </div>
 
-      {/* Manual Complete Button (Backup) */}
-      {canMarkComplete && !isCompleted && !hasReached90 && percentWatched >= 25 && (
-        <div className="pt-4 border-t">
-          <button
-            onClick={handleManualComplete}
-            className="w-full bg-gray-500 text-white px-4 py-2 rounded-md hover:bg-gray-600 transition-colors text-sm"
-          >
-            ✓ Mark as Watched (Manual Override)
-          </button>
-          <p className="text-xs text-gray-500 mt-2 text-center">
-            Use this if the video isn't tracking properly
-          </p>
+      {/* Enhanced Manual Controls */}
+      {canMarkComplete && !isCompleted && (
+        <div className="pt-4 border-t space-y-3">
+          {/* Main manual complete button */}
+          {!hasReached90 && percentWatched >= 25 && (
+            <>
+              <button
+                onClick={handleManualComplete}
+                className="w-full bg-gray-500 text-white px-4 py-2 rounded-md hover:bg-gray-600 transition-colors text-sm"
+              >
+                ✓ Mark as Watched (Manual Override)
+              </button>
+              <p className="text-xs text-gray-500 text-center">
+                Use this if the video isn't tracking properly
+              </p>
+            </>
+          )}
+
+          {/* Debug milestone buttons (only show if not all milestones reached) */}
+          {process.env.NODE_ENV === 'development' && milestonesReached.size < 4 && (
+            <div className="bg-gray-50 p-3 rounded-md">
+              <p className="text-xs text-gray-600 mb-2">Debug: Manual Milestones</p>
+              <div className="flex gap-1">
+                {[25, 50, 75, 90].map(milestone => (
+                  <button
+                    key={milestone}
+                    onClick={() => handleManualMilestone(milestone)}
+                    disabled={milestonesReached.has(milestone)}
+                    className={`px-2 py-1 text-xs rounded ${
+                      milestonesReached.has(milestone)
+                        ? 'bg-green-200 text-green-800'
+                        : 'bg-blue-100 text-blue-800 hover:bg-blue-200'
+                    }`}
+                  >
+                    {milestone}%
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       )}
 

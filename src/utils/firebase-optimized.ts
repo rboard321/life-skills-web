@@ -33,11 +33,15 @@ export interface UserProgressData {
   unlockedActivity: boolean; // New field for 90% threshold
   completedAt?: Date;
   videoProgress?: {
-    watchedSeconds: number;
+    totalWatchedTime: number; // Cumulative time watched across all sessions
     totalSeconds: number;
     percentWatched: number;
+    lastPosition: number; // For resuming playback
+    milestonesReached: number[]; // [25, 50, 75, 90] milestones reached
+    sessionCount: number; // Number of viewing sessions
   };
   activityAttempts?: number;
+  lastUpdated?: Date;
 }
 
 export interface OptimizedUser {
@@ -98,24 +102,59 @@ export class OptimizedProgressTracker {
     await batch.commit();
   }
 
-  // Update video progress specifically
+  // Update video progress with session-based tracking
   async updateVideoProgress(
     unitId: number,
-    watchedSeconds: number,
+    totalWatchedTime: number,
     totalSeconds: number,
+    lastPosition: number = 0,
+    milestonesReached: number[] = [],
     completed: boolean = false
   ): Promise<void> {
-    const percentWatched = Math.min(100, (watchedSeconds / totalSeconds) * 100);
+    const percentWatched = totalSeconds > 0 ? Math.min(100, (totalWatchedTime / totalSeconds) * 100) : 0;
     const hasReached90 = percentWatched >= 90 || completed;
+
+    // Get existing progress to maintain session count
+    const existingProgress = await this.getUserProgress(unitId);
+    const sessionCount = (existingProgress?.videoProgress?.sessionCount || 0) + 1;
 
     await this.updateProgress(unitId, {
       completedVideo: completed,
       unlockedActivity: hasReached90, // Auto-unlock at 90%
       videoProgress: {
-        watchedSeconds,
+        totalWatchedTime,
         totalSeconds,
-        percentWatched
-      }
+        percentWatched,
+        lastPosition,
+        milestonesReached,
+        sessionCount
+      },
+      lastUpdated: new Date()
+    });
+  }
+
+  // Update milestone progress efficiently (for real-time updates)
+  async updateMilestones(
+    unitId: number,
+    totalWatchedTime: number,
+    totalSeconds: number,
+    lastPosition: number,
+    milestonesReached: number[]
+  ): Promise<void> {
+    const percentWatched = totalSeconds > 0 ? Math.min(100, (totalWatchedTime / totalSeconds) * 100) : 0;
+    const hasReached90 = percentWatched >= 90;
+
+    await this.updateProgress(unitId, {
+      unlockedActivity: hasReached90,
+      videoProgress: {
+        totalWatchedTime,
+        totalSeconds,
+        percentWatched,
+        lastPosition,
+        milestonesReached,
+        sessionCount: 1 // Will be updated properly in full updateVideoProgress call
+      },
+      lastUpdated: new Date()
     });
   }
 
@@ -123,7 +162,8 @@ export class OptimizedProgressTracker {
   async completeActivity(unitId: number, attempts: number = 1): Promise<void> {
     await this.updateProgress(unitId, {
       completedActivity: true,
-      activityAttempts: attempts
+      activityAttempts: attempts,
+      lastUpdated: new Date()
     });
   }
 

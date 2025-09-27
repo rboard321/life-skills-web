@@ -44,6 +44,14 @@ const UnitLearning: React.FC = () => {
             setActivityCompleted(detailedProgress.completedActivity);
             setActivityUnlocked(detailedProgress.unlockedActivity || detailedProgress.completedVideo);
             setVideoProgress(detailedProgress.videoProgress?.percentWatched || 0);
+
+            console.log('Loaded detailed progress:', {
+              unitId,
+              percentWatched: detailedProgress.videoProgress?.percentWatched || 0,
+              totalWatchedTime: detailedProgress.videoProgress?.totalWatchedTime || 0,
+              milestonesReached: detailedProgress.videoProgress?.milestonesReached || [],
+              sessionCount: detailedProgress.videoProgress?.sessionCount || 0
+            });
           }
         } catch (error) {
           console.error('Error loading detailed progress:', error);
@@ -72,7 +80,7 @@ const UnitLearning: React.FC = () => {
 
       // Use the optimized progress tracking
       if (videoComplete && !videoWatched) {
-        await progressTracker.updateVideoProgress(unitId, 0, 100, true);
+        await progressTracker.updateVideoProgress(unitId, 100, 100, 100, [25, 50, 75, 90], true);
       }
 
       if (activityComplete && !activityCompleted) {
@@ -97,14 +105,14 @@ const UnitLearning: React.FC = () => {
     // Don't auto-navigate to activity - let user choose when to continue
   };
 
-  // Handle real-time progress updates from the YouTube player
-  const handleProgressUpdate = async (watchedSeconds: number, totalSeconds: number, percentWatched: number) => {
+  // Handle milestone-based progress updates from the YouTube player
+  const handleProgressUpdate = async (totalWatchedTime: number, totalSeconds: number, percentWatched: number) => {
     if (!currentUser || !unitId) return;
 
-    console.log('UnitLearning received progress update:', {
+    console.log('UnitLearning received milestone progress update:', {
       unitId,
       userId: currentUser.uid,
-      watchedSeconds: Math.round(watchedSeconds),
+      totalWatchedTime: Math.round(totalWatchedTime),
       totalSeconds: Math.round(totalSeconds),
       percentWatched: Math.round(percentWatched),
       activityUnlocked
@@ -118,13 +126,24 @@ const UnitLearning: React.FC = () => {
       setActivityUnlocked(true);
     }
 
-    // Update progress in database
+    // Update progress in database using new milestone-based method
     try {
       const progressTracker = new OptimizedProgressTracker(currentUser.uid);
-      await progressTracker.updateVideoProgress(unitId, watchedSeconds, totalSeconds, percentWatched >= 100);
-      console.log('✅ Database updated successfully');
+
+      // Calculate which milestones have been reached
+      const milestones = [25, 50, 75, 90].filter(m => percentWatched >= m);
+
+      await progressTracker.updateMilestones(
+        unitId,
+        totalWatchedTime,
+        totalSeconds,
+        totalWatchedTime, // Use total watched time as last position for now
+        milestones
+      );
+
+      console.log('✅ Milestone progress updated successfully');
     } catch (error) {
-      console.error('❌ Failed to update video progress:', error);
+      console.error('❌ Failed to update milestone progress:', error);
     }
   };
 
