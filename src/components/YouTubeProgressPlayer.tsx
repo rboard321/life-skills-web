@@ -102,7 +102,10 @@ const YouTubeProgressPlayer: React.FC<YouTubeProgressPlayerProps> = ({
         cc_load_policy: 1,
         iv_load_policy: 3,
         enablejsapi: 1,
-        origin: window.location.origin
+        origin: window.location.origin,
+        autoplay: 0,
+        controls: 1,
+        showinfo: 0
       },
       events: {
         onReady: (event: any) => {
@@ -166,10 +169,17 @@ const YouTubeProgressPlayer: React.FC<YouTubeProgressPlayerProps> = ({
       const currentPlayer = playerRef.current;
       if (currentPlayer && currentPlayer.getDuration) {
         try {
+          // Check if player is still valid and playing
+          const playerState = currentPlayer.getPlayerState?.();
+          if (playerState !== 1) { // Not playing
+            console.log('Player not playing, skipping progress update');
+            return;
+          }
+
           const currentTime = currentPlayer.getCurrentTime();
           const videoDuration = currentPlayer.getDuration();
 
-          if (videoDuration > 0) {
+          if (videoDuration > 0 && currentTime >= 0) {
             const percent = Math.min(100, (currentTime / videoDuration) * 100);
 
             setWatchedSeconds(currentTime);
@@ -199,11 +209,13 @@ const YouTubeProgressPlayer: React.FC<YouTubeProgressPlayerProps> = ({
           }
         } catch (error) {
           console.error('Error getting video progress:', error);
+          // Stop tracking if we get repeated errors
+          stopProgressTracking();
         }
       } else {
         console.log('Player not ready for progress tracking');
       }
-    }, 2000); // Update every 2 seconds
+    }, 5000); // Update every 5 seconds
   }, [hasReached90, onVideoComplete, onProgressUpdate]);
 
   const stopProgressTracking = useCallback(() => {
