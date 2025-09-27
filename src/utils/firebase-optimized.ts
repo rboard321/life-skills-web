@@ -380,7 +380,11 @@ export class MigrationUtils {
         unitId: progress.unitId,
         completedVideo: progress.completedVideo || false,
         completedActivity: progress.completedActivity || false,
-        completedAt: progress.completedAt?.toDate?.() || progress.completedAt,
+        completedAt: progress.completedAt && typeof progress.completedAt === 'object' && 'toDate' in progress.completedAt
+          ? progress.completedAt.toDate?.()
+          : progress.completedAt instanceof Date
+          ? progress.completedAt
+          : undefined,
       };
 
       batch.set(progressRef, progressData);
