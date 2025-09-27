@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useUnits } from '../hooks/useUnits';
-import ImprovedVideoPlayer from './ImprovedVideoPlayer';
+import SimpleVideoPlayer from './SimpleVideoPlayer';
 import { getEmbeddableActivityUrl, getActivityInstructions } from '../utils/activityUrls';
 import { optimizeYouTubeUrl } from '../utils/youtube';
 import { OptimizedProgressTracker } from '../utils/firebase-optimized';
@@ -195,23 +195,13 @@ const UnitLearning: React.FC = () => {
                 {unit.description}
               </p>
 
-              <ImprovedVideoPlayer
+              <SimpleVideoPlayer
                 url={optimizeYouTubeUrl(unit.videoUrl)}
                 title={unit.title}
                 canMarkComplete={true}
                 isCompleted={videoWatched}
                 onVideoComplete={handleVideoComplete}
                 allowRewatch={true}
-                onVideoProgressUpdate={async (watchedSeconds, totalSeconds) => {
-                  if (unitId && currentUser) {
-                    try {
-                      const progressTracker = new OptimizedProgressTracker(currentUser.uid);
-                      await progressTracker.updateVideoProgress(unitId, watchedSeconds, totalSeconds, false);
-                    } catch (error) {
-                      console.error('Failed to update video progress:', error);
-                    }
-                  }
-                }}
               />
 
               {videoWatched && (
