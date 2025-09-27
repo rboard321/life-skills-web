@@ -19,6 +19,7 @@ const SimpleAdminPage: React.FC = () => {
   const [activityUrl, setActivityUrl] = useState('');
   const [activityType, setActivityType] = useState<'h5p' | 'wordwall'>('h5p');
   const [order, setOrder] = useState(1);
+  const [isActive, setIsActive] = useState(true);
 
   // Loading states
   const [loading, setLoading] = useState(false);
@@ -32,6 +33,7 @@ const SimpleAdminPage: React.FC = () => {
   const [editActivityUrl, setEditActivityUrl] = useState('');
   const [editActivityType, setEditActivityType] = useState<'h5p' | 'wordwall'>('h5p');
   const [editOrder, setEditOrder] = useState(1);
+  const [editIsActive, setEditIsActive] = useState(true);
 
   useEffect(() => {
     loadUnits();
@@ -51,6 +53,9 @@ const SimpleAdminPage: React.FC = () => {
           activityUrl: data.activityUrl || '',
           activityType: data.activityType || 'h5p',
           order: data.order || 1,
+          isActive: data.isActive,
+          createdAt: data.createdAt?.toDate?.() || data.createdAt,
+          updatedAt: data.updatedAt?.toDate?.() || data.updatedAt,
           docId: doc.id
         };
       }) as FirebaseUnit[];
@@ -87,7 +92,10 @@ const SimpleAdminPage: React.FC = () => {
         videoUrl: videoUrl.trim(),
         activityUrl: activityUrl.trim(),
         activityType,
-        order
+        order,
+        isActive,
+        createdAt: new Date(),
+        updatedAt: new Date()
       };
 
       await addDoc(collection(db, 'units'), newUnit);
@@ -98,6 +106,7 @@ const SimpleAdminPage: React.FC = () => {
       setVideoUrl('');
       setActivityUrl('');
       setActivityType('h5p');
+      setIsActive(true);
 
       // Reload units
       await loadUnits();
@@ -134,6 +143,7 @@ const SimpleAdminPage: React.FC = () => {
     setEditActivityUrl(unit.activityUrl);
     setEditActivityType(unit.activityType);
     setEditOrder(unit.order);
+    setEditIsActive(unit.isActive ?? true);
   };
 
   const handleUpdateUnit = async (e: React.FormEvent) => {
@@ -156,7 +166,9 @@ const SimpleAdminPage: React.FC = () => {
         videoUrl: editVideoUrl.trim(),
         activityUrl: editActivityUrl.trim(),
         activityType: editActivityType,
-        order: editOrder
+        order: editOrder,
+        isActive: editIsActive,
+        updatedAt: new Date()
       };
 
       await updateDoc(doc(db, 'units', editingUnit.docId), updatedUnit);
@@ -169,6 +181,7 @@ const SimpleAdminPage: React.FC = () => {
       setEditActivityUrl('');
       setEditActivityType('h5p');
       setEditOrder(1);
+      setEditIsActive(true);
 
       // Reload units
       await loadUnits();
@@ -345,6 +358,19 @@ const SimpleAdminPage: React.FC = () => {
                     <option value="wordwall">Wordwall Game</option>
                   </select>
                 </div>
+              </div>
+
+              <div className="flex items-center">
+                <input
+                  type="checkbox"
+                  id="unitIsActive"
+                  checked={isActive}
+                  onChange={(e) => setIsActive(e.target.checked)}
+                  className="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                />
+                <label htmlFor="unitIsActive" className="ml-2 block text-sm text-gray-700">
+                  Unit is Active (visible to students)
+                </label>
               </div>
 
               <div className="pt-4 border-t">
@@ -556,6 +582,19 @@ const SimpleAdminPage: React.FC = () => {
                         <option value="wordwall">Wordwall Game</option>
                       </select>
                     </div>
+                  </div>
+
+                  <div className="flex items-center">
+                    <input
+                      type="checkbox"
+                      id="editUnitIsActive"
+                      checked={editIsActive}
+                      onChange={(e) => setEditIsActive(e.target.checked)}
+                      className="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                    />
+                    <label htmlFor="editUnitIsActive" className="ml-2 block text-sm text-gray-700">
+                      Unit is Active (visible to students)
+                    </label>
                   </div>
 
                   <div className="pt-4 border-t flex gap-3">

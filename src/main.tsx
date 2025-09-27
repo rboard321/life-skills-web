@@ -3,7 +3,7 @@ import ReactDOM from 'react-dom/client';
 import './index.css';
 import StudentDashboard from './components/StudentDashboard';
 import UnitLearning from './components/UnitLearning';
-import AdminPage from './components/AdminPage';
+import SimpleAdminPage from './components/SimpleAdminPage';
 import Login from './components/auth/Login';
 import Signup from './components/auth/Signup';
 import ForgotPassword from './components/auth/ForgotPassword';
@@ -56,7 +56,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
               path="/admin"
               element={
                 <ProtectedRoute requiresAdmin>
-                  <AdminPage />
+                  <SimpleAdminPage />
                 </ProtectedRoute>
               }
             />
