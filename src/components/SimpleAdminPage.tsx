@@ -80,14 +80,11 @@ const SimpleAdminPage: React.FC = () => {
         return;
       }
 
-      // Optimize YouTube URL
-      const optimizedVideoUrl = optimizeYouTubeUrl(videoUrl);
-
       const newUnit: Unit = {
         id: order,
         title: title.trim(),
         description: description.trim(),
-        videoUrl: optimizedVideoUrl,
+        videoUrl: videoUrl.trim(),
         activityUrl: activityUrl.trim(),
         activityType,
         order
@@ -152,14 +149,11 @@ const SimpleAdminPage: React.FC = () => {
         return;
       }
 
-      // Optimize YouTube URL
-      const optimizedVideoUrl = optimizeYouTubeUrl(editVideoUrl);
-
       const updatedUnit: Unit = {
         id: editingUnit.id,
         title: editTitle.trim(),
         description: editDescription.trim(),
-        videoUrl: optimizedVideoUrl,
+        videoUrl: editVideoUrl.trim(),
         activityUrl: editActivityUrl.trim(),
         activityType: editActivityType,
         order: editOrder

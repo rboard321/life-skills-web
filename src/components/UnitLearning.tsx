@@ -6,6 +6,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useUnits } from '../hooks/useUnits';
 import ImprovedVideoPlayer from './ImprovedVideoPlayer';
 import { getEmbeddableActivityUrl, getActivityInstructions } from '../utils/activityUrls';
+import { optimizeYouTubeUrl } from '../utils/youtube';
 import type { UserProgress } from '../data/sampleUnits';
 
 const UnitLearning: React.FC = () => {
@@ -207,7 +208,7 @@ const UnitLearning: React.FC = () => {
               </p>
 
               <ImprovedVideoPlayer
-                url={unit.videoUrl}
+                url={optimizeYouTubeUrl(unit.videoUrl)}
                 title={unit.title}
                 canMarkComplete={true}
                 isCompleted={videoWatched}
