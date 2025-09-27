@@ -7,6 +7,7 @@ import SimpleAdminPage from './components/SimpleAdminPage';
 import Login from './components/auth/Login';
 import Signup from './components/auth/Signup';
 import ForgotPassword from './components/auth/ForgotPassword';
+import FirebaseTest from './components/FirebaseTest';
 import { ProtectedRoute } from './components/auth/ProtectedRoute';
 import Navbar from './components/layout/Navbar';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
@@ -32,6 +33,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
             <Route path="/login" element={<Login />} />
             <Route path="/signup" element={<Signup />} />
             <Route path="/forgot-password" element={<ForgotPassword />} />
+            <Route path="/firebase-test" element={<FirebaseTest />} />
 
             {/* Protected Routes */}
             <Route

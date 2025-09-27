@@ -16,3 +16,24 @@ const app = initializeApp(firebaseConfig);
 export const db = getFirestore(app);
 export const auth = getAuth(app);
 
+// Debug Firebase connection
+console.log('Firebase initialized with config:', {
+  projectId: firebaseConfig.projectId,
+  authDomain: firebaseConfig.authDomain
+});
+
+// Test Firestore connection
+export const testFirestoreConnection = async () => {
+  try {
+    // Simple connection test - this should work even with basic rules
+    const testDoc = await import('firebase/firestore').then(module =>
+      module.doc(db, 'test', 'connection')
+    );
+    console.log('Firestore connection test successful', testDoc);
+    return true;
+  } catch (error) {
+    console.error('Firestore connection test failed:', error);
+    return false;
+  }
+};
+
