@@ -35,25 +35,27 @@ const YouTubeProgressPlayer: React.FC<YouTubeProgressPlayerProps> = ({
   const [player, setPlayer] = useState<any>(null);
   const [isReady, setIsReady] = useState(false);
   const [duration, setDuration] = useState(0);
-  const [totalWatchedTime, setTotalWatchedTime] = useState(0);
   const [percentWatched, setPercentWatched] = useState(currentProgress);
   const [hasReached90, setHasReached90] = useState(currentProgress >= 90);
   const [isPlaying, setIsPlaying] = useState(false);
   const [hasError, setHasError] = useState(false);
   const [isAPILoaded, setIsAPILoaded] = useState(false);
 
-  // Event-based tracking state
-  const [playStartTime, setPlayStartTime] = useState<number | null>(null);
-  const [milestonesReached, setMilestonesReached] = useState<Set<number>>(() => {
-    // Initialize milestones based on current progress
+  // Simplified tracking state using refs to avoid re-renders
+  const playStartTimeRef = useRef<number | null>(null);
+  const totalWatchTimeRef = useRef<number>(0);
+  const milestonesReachedRef = useRef<Set<number>>(new Set<number>());
+  const lastUpdateTimeRef = useRef<number>(0);
+
+  // Initialize milestones based on current progress
+  useEffect(() => {
     const milestones = new Set<number>();
     if (currentProgress >= 25) milestones.add(25);
     if (currentProgress >= 50) milestones.add(50);
     if (currentProgress >= 75) milestones.add(75);
     if (currentProgress >= 90) milestones.add(90);
-    return milestones;
-  });
-  const [_lastPosition, setLastPosition] = useState(0);
+    milestonesReachedRef.current = milestones;
+  }, [currentProgress]);
 
   // Extract video ID from YouTube URL
   const extractVideoId = useCallback((videoUrl: string): string | null => {
@@ -70,9 +72,9 @@ const YouTubeProgressPlayer: React.FC<YouTubeProgressPlayerProps> = ({
     isAPILoaded,
     isReady,
     player: !!player,
-    totalWatchedTime: Math.round(totalWatchedTime),
+    totalWatchedTime: Math.round(totalWatchTimeRef.current),
     percentWatched: Math.round(percentWatched),
-    milestonesReached: Array.from(milestonesReached),
+    milestonesReached: Array.from(milestonesReachedRef.current),
     isPlaying
   });
 
@@ -165,14 +167,13 @@ const YouTubeProgressPlayer: React.FC<YouTubeProgressPlayerProps> = ({
 
     return () => {
       // Capture any remaining watch time before cleanup
-      if (isPlaying && playerRef.current && playStartTime !== null) {
+      if (isPlaying && playerRef.current && playStartTimeRef.current !== null) {
         try {
           const currentTime = playerRef.current.getCurrentTime();
-          const sessionWatchTime = Math.max(0, currentTime - playStartTime);
-          const newTotalWatchTime = totalWatchedTime + sessionWatchTime;
+          const sessionWatchTime = Math.max(0, currentTime - playStartTimeRef.current);
+          totalWatchTimeRef.current = totalWatchTimeRef.current + sessionWatchTime;
 
           console.log('⚠️ Cleanup: capturing remaining watch time:', Math.round(sessionWatchTime));
-          setTotalWatchedTime(newTotalWatchTime);
         } catch (error) {
           console.error('Error during cleanup:', error);
         }
@@ -183,16 +184,17 @@ const YouTubeProgressPlayer: React.FC<YouTubeProgressPlayerProps> = ({
         playerRef.current = null;
       }
     };
-  }, [isAPILoaded, videoId, currentProgress, isPlaying, playStartTime, totalWatchedTime]);
+  }, [isAPILoaded, videoId, currentProgress, isPlaying]);
 
-  // Event-based progress tracking
+  // Simplified event-based tracking with minimal state updates
   const handlePlayStart = useCallback(() => {
     if (!playerRef.current) return;
 
     try {
       const currentTime = playerRef.current.getCurrentTime();
-      setPlayStartTime(currentTime);
-      setLastPosition(currentTime);
+      playStartTimeRef.current = currentTime;
+
+      // Only update playing state, avoid other state changes during play
       setIsPlaying(true);
 
       console.log('▶️ Video play started at:', Math.round(currentTime), 'seconds');
@@ -202,36 +204,33 @@ const YouTubeProgressPlayer: React.FC<YouTubeProgressPlayerProps> = ({
   }, []);
 
   const handlePlayEnd = useCallback(() => {
-    if (!playerRef.current || playStartTime === null) return;
+    if (!playerRef.current || playStartTimeRef.current === null) return;
 
     try {
       const currentTime = playerRef.current.getCurrentTime();
       const videoDuration = playerRef.current.getDuration();
+      const sessionWatchTime = Math.max(0, currentTime - playStartTimeRef.current);
 
-      // Calculate time watched in this play session
-      const sessionWatchTime = Math.max(0, currentTime - playStartTime);
-      const newTotalWatchTime = totalWatchedTime + sessionWatchTime;
-
-      setTotalWatchedTime(newTotalWatchTime);
-      setPlayStartTime(null);
+      // Update refs instead of state to avoid re-renders
+      totalWatchTimeRef.current = totalWatchTimeRef.current + sessionWatchTime;
+      playStartTimeRef.current = null;
       setIsPlaying(false);
-      setLastPosition(currentTime);
 
-      // Calculate progress percentage
-      const percent = videoDuration > 0 ? Math.min(100, (newTotalWatchTime / videoDuration) * 100) : 0;
-      setPercentWatched(percent);
+      console.log('⏸️ Video paused. Session:', Math.round(sessionWatchTime), 'Total:', Math.round(totalWatchTimeRef.current));
 
-      console.log('⏸️ Video paused/stopped. Session watch time:', Math.round(sessionWatchTime), 'Total watched:', Math.round(newTotalWatchTime), 'Progress:', Math.round(percent) + '%');
-
-      // Check milestones and update database
-      checkMilestonesAndUpdate(newTotalWatchTime, videoDuration, currentTime);
+      // Only check milestones occasionally to minimize database calls
+      const now = Date.now();
+      if (now - lastUpdateTimeRef.current > 5000) { // Update at most every 5 seconds
+        checkMilestonesAndUpdate(totalWatchTimeRef.current, videoDuration);
+        lastUpdateTimeRef.current = now;
+      }
 
     } catch (error) {
       console.error('Error calculating watch time:', error);
     }
-  }, [playStartTime, totalWatchedTime]);
+  }, []);
 
-  const checkMilestonesAndUpdate = useCallback(async (watchedTime: number, videoDuration: number, _currentPosition: number) => {
+  const checkMilestonesAndUpdate = useCallback(async (watchedTime: number, videoDuration: number) => {
     if (!videoDuration || videoDuration <= 0) return;
 
     const percent = Math.min(100, (watchedTime / videoDuration) * 100);
@@ -239,30 +238,33 @@ const YouTubeProgressPlayer: React.FC<YouTubeProgressPlayerProps> = ({
 
     // Check which new milestones have been reached
     const newMilestones = milestones.filter(milestone =>
-      percent >= milestone && !milestonesReached.has(milestone)
+      percent >= milestone && !milestonesReachedRef.current.has(milestone)
     );
 
     if (newMilestones.length > 0) {
       console.log('🎯 New milestones reached:', newMilestones);
 
-      // Update milestones state
-      const updatedMilestones = new Set([...milestonesReached, ...newMilestones]);
-      setMilestonesReached(updatedMilestones);
+      // Update refs instead of state
+      newMilestones.forEach(m => milestonesReachedRef.current.add(m));
 
-      // Check for 90% completion
+      // Only update state for critical UI changes
       if (newMilestones.includes(90) && !hasReached90) {
         setHasReached90(true);
+        setPercentWatched(percent);
         if (onVideoComplete) {
           onVideoComplete();
         }
+      } else {
+        // Update progress without triggering re-render
+        setPercentWatched(percent);
       }
 
-      // Update database with progress
+      // Update database
       if (onProgressUpdate) {
         onProgressUpdate(watchedTime, videoDuration, percent);
       }
     }
-  }, [milestonesReached, hasReached90, onVideoComplete, onProgressUpdate]);
+  }, [hasReached90, onVideoComplete, onProgressUpdate]);
 
   const handleVideoEnd = useCallback(() => {
     console.log('🏁 Video ended - marking as 100% complete');
@@ -288,10 +290,10 @@ const YouTubeProgressPlayer: React.FC<YouTubeProgressPlayerProps> = ({
     // Set to 100% progress
     setHasReached90(true);
     setPercentWatched(100);
-    setTotalWatchedTime(duration > 0 ? duration : 100); // Use full duration or fallback
+    totalWatchTimeRef.current = duration > 0 ? duration : 100;
 
     // Update milestones to include all
-    setMilestonesReached(new Set([25, 50, 75, 90]));
+    milestonesReachedRef.current = new Set([25, 50, 75, 90]);
 
     if (onVideoComplete) {
       onVideoComplete();
@@ -307,9 +309,7 @@ const YouTubeProgressPlayer: React.FC<YouTubeProgressPlayerProps> = ({
   const handleManualMilestone = (milestone: number) => {
     console.log('🎯 Manual milestone triggered:', milestone + '%');
 
-    const newMilestones = new Set([...milestonesReached]);
-    newMilestones.add(milestone);
-    setMilestonesReached(newMilestones);
+    milestonesReachedRef.current.add(milestone);
 
     if (milestone >= 90) {
       setHasReached90(true);
@@ -342,8 +342,8 @@ const YouTubeProgressPlayer: React.FC<YouTubeProgressPlayerProps> = ({
       return '✅ Video completed! Activity unlocked.';
     }
 
-    const reachedMilestones = Array.from(milestonesReached).sort((a, b) => b - a);
-    const nextMilestone = [25, 50, 75, 90].find(m => !milestonesReached.has(m));
+    const reachedMilestones = Array.from(milestonesReachedRef.current).sort((a, b) => b - a);
+    const nextMilestone = [25, 50, 75, 90].find(m => !milestonesReachedRef.current.has(m));
 
     if (percentWatched >= 75) {
       return `🎯 Almost there! ${90 - Math.round(percentWatched)}% more to unlock the activity.`;
@@ -454,7 +454,7 @@ const YouTubeProgressPlayer: React.FC<YouTubeProgressPlayerProps> = ({
           )}
 
           {/* Debug milestone buttons (only show if not all milestones reached) */}
-          {process.env.NODE_ENV === 'development' && milestonesReached.size < 4 && (
+          {process.env.NODE_ENV === 'development' && milestonesReachedRef.current.size < 4 && (
             <div className="bg-gray-50 p-3 rounded-md">
               <p className="text-xs text-gray-600 mb-2">Debug: Manual Milestones</p>
               <div className="flex gap-1">
@@ -462,9 +462,9 @@ const YouTubeProgressPlayer: React.FC<YouTubeProgressPlayerProps> = ({
                   <button
                     key={milestone}
                     onClick={() => handleManualMilestone(milestone)}
-                    disabled={milestonesReached.has(milestone)}
+                    disabled={milestonesReachedRef.current.has(milestone)}
                     className={`px-2 py-1 text-xs rounded ${
-                      milestonesReached.has(milestone)
+                      milestonesReachedRef.current.has(milestone)
                         ? 'bg-green-200 text-green-800'
                         : 'bg-blue-100 text-blue-800 hover:bg-blue-200'
                     }`}
