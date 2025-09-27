@@ -154,43 +154,57 @@ const YouTubeProgressPlayer: React.FC<YouTubeProgressPlayerProps> = ({
   const startProgressTracking = useCallback(() => {
     console.log('startProgressTracking called', {
       hasExistingInterval: !!progressIntervalRef.current,
-      player: !!player,
+      playerRef: !!playerRef.current,
+      playerState: !!player,
       duration
     });
 
     if (progressIntervalRef.current) return;
 
     progressIntervalRef.current = setInterval(() => {
-      if (player && duration > 0) {
-        const currentTime = player.getCurrentTime();
-        const percent = Math.min(100, (currentTime / duration) * 100);
+      // Get current values directly from the player ref
+      const currentPlayer = playerRef.current;
+      if (currentPlayer && currentPlayer.getDuration) {
+        try {
+          const currentTime = currentPlayer.getCurrentTime();
+          const videoDuration = currentPlayer.getDuration();
 
-        setWatchedSeconds(currentTime);
-        setPercentWatched(percent);
+          if (videoDuration > 0) {
+            const percent = Math.min(100, (currentTime / videoDuration) * 100);
 
-        // Check if reached 90%
-        if (percent >= 90 && !hasReached90) {
-          setHasReached90(true);
-          if (onVideoComplete) {
-            onVideoComplete();
+            setWatchedSeconds(currentTime);
+            setPercentWatched(percent);
+            setDuration(videoDuration);
+
+            // Check if reached 90%
+            if (percent >= 90 && !hasReached90) {
+              setHasReached90(true);
+              if (onVideoComplete) {
+                onVideoComplete();
+              }
+            }
+
+            // Call progress update callback
+            if (onProgressUpdate) {
+              onProgressUpdate(currentTime, videoDuration, percent);
+            }
+
+            // Debug logging
+            console.log('Video Progress:', {
+              currentTime: Math.round(currentTime),
+              duration: Math.round(videoDuration),
+              percent: Math.round(percent),
+              hasReached90
+            });
           }
+        } catch (error) {
+          console.error('Error getting video progress:', error);
         }
-
-        // Call progress update callback
-        if (onProgressUpdate) {
-          onProgressUpdate(currentTime, duration, percent);
-        }
-
-        // Debug logging
-        console.log('Video Progress:', {
-          currentTime: Math.round(currentTime),
-          duration: Math.round(duration),
-          percent: Math.round(percent),
-          hasReached90
-        });
+      } else {
+        console.log('Player not ready for progress tracking');
       }
     }, 2000); // Update every 2 seconds
-  }, [player, duration, hasReached90, onVideoComplete, onProgressUpdate]);
+  }, [hasReached90, onVideoComplete, onProgressUpdate]);
 
   const stopProgressTracking = useCallback(() => {
     if (progressIntervalRef.current) {
