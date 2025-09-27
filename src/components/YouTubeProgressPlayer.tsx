@@ -67,6 +67,7 @@ const YouTubeProgressPlayer: React.FC<YouTubeProgressPlayerProps> = ({
     }
 
     window.onYouTubeIframeAPIReady = () => {
+      console.log('🎬 YouTube API loaded successfully');
       setIsAPILoaded(true);
     };
   }, []);
@@ -150,6 +151,14 @@ const YouTubeProgressPlayer: React.FC<YouTubeProgressPlayerProps> = ({
         if (onProgressUpdate) {
           onProgressUpdate(currentTime, duration, percent);
         }
+
+        // Debug logging
+        console.log('Video Progress:', {
+          currentTime: Math.round(currentTime),
+          duration: Math.round(duration),
+          percent: Math.round(percent),
+          hasReached90
+        });
       }
     }, 2000); // Update every 2 seconds
   }, [player, duration, hasReached90, onVideoComplete, onProgressUpdate]);

@@ -101,10 +101,20 @@ const UnitLearning: React.FC = () => {
   const handleProgressUpdate = async (watchedSeconds: number, totalSeconds: number, percentWatched: number) => {
     if (!currentUser || !unitId) return;
 
+    console.log('UnitLearning received progress update:', {
+      unitId,
+      userId: currentUser.uid,
+      watchedSeconds: Math.round(watchedSeconds),
+      totalSeconds: Math.round(totalSeconds),
+      percentWatched: Math.round(percentWatched),
+      activityUnlocked
+    });
+
     setVideoProgress(percentWatched);
 
     // Auto-unlock activity at 90%
     if (percentWatched >= 90 && !activityUnlocked) {
+      console.log('🎯 Unlocking activity at 90%!');
       setActivityUnlocked(true);
     }
 
@@ -112,8 +122,9 @@ const UnitLearning: React.FC = () => {
     try {
       const progressTracker = new OptimizedProgressTracker(currentUser.uid);
       await progressTracker.updateVideoProgress(unitId, watchedSeconds, totalSeconds, percentWatched >= 100);
+      console.log('✅ Database updated successfully');
     } catch (error) {
-      console.error('Failed to update video progress:', error);
+      console.error('❌ Failed to update video progress:', error);
     }
   };
 
