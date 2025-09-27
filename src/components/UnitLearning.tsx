@@ -2,9 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useUnits } from '../hooks/useUnits';
-import YouTubeProgressPlayer from './YouTubeProgressPlayer';
+import ReactPlayerProgressTracker from './ReactPlayerProgressTracker';
 import { getEmbeddableActivityUrl, getActivityInstructions } from '../utils/activityUrls';
-import { optimizeYouTubeUrl } from '../utils/youtube';
+// import { optimizeYouTubeUrl } from '../utils/youtube'; // Not needed with ReactPlayer
 import { OptimizedProgressTracker } from '../utils/firebase-optimized';
 
 const UnitLearning: React.FC = () => {
@@ -272,8 +272,8 @@ const UnitLearning: React.FC = () => {
                 {unit.description}
               </p>
 
-              <YouTubeProgressPlayer
-                url={optimizeYouTubeUrl(unit.videoUrl)}
+              <ReactPlayerProgressTracker
+                url={unit.videoUrl}
                 title={unit.title}
                 canMarkComplete={true}
                 isCompleted={videoWatched}
