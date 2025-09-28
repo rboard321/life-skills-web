@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useUnits } from '../hooks/useUnits';
-import ReactPlayerProgressTracker from './ReactPlayerProgressTracker';
+import SimpleVideoPlayer from './SimpleVideoPlayer';
 import { getEmbeddableActivityUrl, getActivityInstructions } from '../utils/activityUrls';
 // import { optimizeYouTubeUrl } from '../utils/youtube'; // Not needed with ReactPlayer
 import { OptimizedProgressTracker } from '../utils/firebase-optimized';
@@ -17,7 +17,6 @@ const UnitLearning: React.FC = () => {
   const [videoWatched, setVideoWatched] = useState(false);
   const [activityCompleted, setActivityCompleted] = useState(false);
   const [activityUnlocked, setActivityUnlocked] = useState(false);
-  const [videoProgress, setVideoProgress] = useState(0);
   const [saving, setSaving] = useState(false);
 
   const unitId = id ? parseInt(id, 10) : null;
@@ -30,7 +29,6 @@ const UnitLearning: React.FC = () => {
         setVideoWatched(progress.completedVideo);
         setActivityCompleted(progress.completedActivity);
         setActivityUnlocked(progress.completedVideo); // Legacy fallback
-        setVideoProgress(progress.videoProgress?.percentWatched || 0);
       }
 
       // Load detailed progress from Firestore if available
@@ -43,14 +41,11 @@ const UnitLearning: React.FC = () => {
             setVideoWatched(detailedProgress.completedVideo);
             setActivityCompleted(detailedProgress.completedActivity);
             setActivityUnlocked(detailedProgress.unlockedActivity || detailedProgress.completedVideo);
-            setVideoProgress(detailedProgress.videoProgress?.percentWatched || 0);
-
             console.log('Loaded detailed progress:', {
               unitId,
-              percentWatched: detailedProgress.videoProgress?.percentWatched || 0,
-              totalWatchedTime: detailedProgress.videoProgress?.totalWatchedTime || 0,
-              milestonesReached: detailedProgress.videoProgress?.milestonesReached || [],
-              sessionCount: detailedProgress.videoProgress?.sessionCount || 0
+              videoWatched: detailedProgress.completedVideo,
+              activityCompleted: detailedProgress.completedActivity,
+              activityUnlocked: detailedProgress.unlockedActivity
             });
           }
         } catch (error) {
@@ -105,47 +100,6 @@ const UnitLearning: React.FC = () => {
     // Don't auto-navigate to activity - let user choose when to continue
   };
 
-  // Handle milestone-based progress updates from the YouTube player
-  const handleProgressUpdate = async (totalWatchedTime: number, totalSeconds: number, percentWatched: number) => {
-    if (!currentUser || !unitId) return;
-
-    console.log('UnitLearning received milestone progress update:', {
-      unitId,
-      userId: currentUser.uid,
-      totalWatchedTime: Math.round(totalWatchedTime),
-      totalSeconds: Math.round(totalSeconds),
-      percentWatched: Math.round(percentWatched),
-      activityUnlocked
-    });
-
-    setVideoProgress(percentWatched);
-
-    // Auto-unlock activity at 90%
-    if (percentWatched >= 90 && !activityUnlocked) {
-      console.log('🎯 Unlocking activity at 90%!');
-      setActivityUnlocked(true);
-    }
-
-    // Update progress in database using new milestone-based method
-    try {
-      const progressTracker = new OptimizedProgressTracker(currentUser.uid);
-
-      // Calculate which milestones have been reached
-      const milestones = [25, 50, 75, 90].filter(m => percentWatched >= m);
-
-      await progressTracker.updateMilestones(
-        unitId,
-        totalWatchedTime,
-        totalSeconds,
-        totalWatchedTime, // Use total watched time as last position for now
-        milestones
-      );
-
-      console.log('✅ Milestone progress updated successfully');
-    } catch (error) {
-      console.error('❌ Failed to update milestone progress:', error);
-    }
-  };
 
   const handleActivityComplete = async () => {
     await updateUserProgress(videoWatched, true);
@@ -272,15 +226,10 @@ const UnitLearning: React.FC = () => {
                 {unit.description}
               </p>
 
-              <ReactPlayerProgressTracker
+              <SimpleVideoPlayer
                 url={unit.videoUrl}
                 title={unit.title}
-                canMarkComplete={true}
-                isCompleted={videoWatched}
-                onVideoComplete={handleVideoComplete}
-                onProgressUpdate={handleProgressUpdate}
-                allowRewatch={true}
-                currentProgress={videoProgress}
+                onVideoWatched={handleVideoComplete}
               />
 
               {/* Activity Button with Smart States */}
@@ -307,25 +256,11 @@ const UnitLearning: React.FC = () => {
                       </svg>
                     </button>
 
-                    {/* Progress-based messaging */}
+                    {/* Simple messaging */}
                     <div className="text-center text-sm">
-                      {videoProgress >= 75 ? (
-                        <p className="text-yellow-600">
-                          🎯 <strong>Almost there!</strong> Watch {90 - Math.round(videoProgress)}% more to unlock the activity.
-                        </p>
-                      ) : videoProgress >= 50 ? (
-                        <p className="text-blue-600">
-                          👍 <strong>Halfway done!</strong> Keep watching to unlock the activity.
-                        </p>
-                      ) : videoProgress >= 25 ? (
-                        <p className="text-blue-600">
-                          📺 <strong>Good progress!</strong> Continue watching to reach 90%.
-                        </p>
-                      ) : (
-                        <p className="text-gray-600">
-                          ▶️ <strong>Watch 90% of the video</strong> to unlock the activity.
-                        </p>
-                      )}
+                      <p className="text-gray-600">
+                        ▶️ <strong>Watch the video</strong> to unlock the activity.
+                      </p>
                     </div>
                   </div>
                 )}
@@ -345,8 +280,7 @@ const UnitLearning: React.FC = () => {
                   <span className="font-medium">Activity Locked</span>
                 </div>
                 <p className="text-sm text-red-700">
-                  You need to watch at least 90% of the video to unlock this activity.
-                  Current progress: <strong>{Math.round(videoProgress)}%</strong>
+                  You need to watch the video to unlock this activity.
                 </p>
                 <button
                   onClick={() => setCurrentStep('video')}
