@@ -32,6 +32,7 @@ const ReactPlayerProgressTracker: React.FC<ReactPlayerProgressTrackerProps> = ({
   const [lastPosition, setLastPosition] = useState(0);
   const [isReady, setIsReady] = useState(false);
   const [hasError, setHasError] = useState(false);
+  const [loadingTimeout, setLoadingTimeout] = useState(false);
 
   // Milestone tracking - moved to constants
   const [milestonesReached, setMilestonesReached] = useState<number[]>(() => {
@@ -49,17 +50,36 @@ const ReactPlayerProgressTracker: React.FC<ReactPlayerProgressTrackerProps> = ({
     }
   }, [currentProgress, duration]);
 
+  // Set loading timeout
+  useEffect(() => {
+    const timeout = setTimeout(() => {
+      if (!isReady && !hasError) {
+        console.warn('⏰ Video loading timeout - taking too long to load');
+        setLoadingTimeout(true);
+      }
+    }, 15000); // 15 second timeout
+
+    if (isReady || hasError) {
+      clearTimeout(timeout);
+      setLoadingTimeout(false);
+    }
+
+    return () => clearTimeout(timeout);
+  }, [isReady, hasError]);
+
   // Handle when player is ready
   const handleReady = useCallback(() => {
     console.log('🎬 ReactPlayer ready, duration:', Math.round(duration));
+    console.log('🎬 Video URL:', url);
     setIsReady(true);
+    setHasError(false); // Clear any previous errors
 
     // Resume from last position if applicable
     if (lastPosition > 0 && playerRef.current) {
       console.log('⏭️ Resuming from:', Math.round(lastPosition), 'seconds');
       playerRef.current.seekTo(lastPosition, 'seconds');
     }
-  }, [duration, lastPosition]);
+  }, [duration, lastPosition, url]);
 
   // Handle duration change
   const handleDuration = useCallback((duration: number) => {
@@ -127,8 +147,10 @@ const ReactPlayerProgressTracker: React.FC<ReactPlayerProgressTrackerProps> = ({
   // Handle player errors
   const handleError = useCallback((error: unknown) => {
     console.error('❌ ReactPlayer error:', error);
+    console.error('❌ Failed URL:', url);
     setHasError(true);
-  }, []);
+    setIsReady(false);
+  }, [url]);
 
   // Manual complete handler
   const handleManualComplete = useCallback(() => {
@@ -206,20 +228,42 @@ const ReactPlayerProgressTracker: React.FC<ReactPlayerProgressTrackerProps> = ({
     return '▶️ Watch at least 90% to unlock the activity.';
   };
 
-  if (hasError) {
+  if (hasError || loadingTimeout) {
     return (
       <div className="space-y-4">
         <div className="relative aspect-video bg-gray-100 rounded-lg overflow-hidden flex items-center justify-center">
           <div className="text-center p-8">
-            <div className="text-4xl mb-4">⚠️</div>
-            <h3 className="text-lg font-semibold text-gray-900 mb-2">Video Cannot Be Loaded</h3>
-            <p className="text-gray-600 mb-4">Please check that the video URL is correct and the video is public.</p>
-            <button
-              onClick={() => window.open(url, '_blank')}
-              className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 transition-colors"
-            >
-              Open in YouTube
-            </button>
+            <div className="text-4xl mb-4">{hasError ? '⚠️' : '⏰'}</div>
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">
+              {hasError ? 'Video Cannot Be Loaded' : 'Video Loading Timeout'}
+            </h3>
+            <p className="text-gray-600 mb-2">
+              {hasError
+                ? 'Please check that the video URL is correct and the video is public.'
+                : 'The video is taking too long to load. This might be a network issue or the video URL might be invalid.'
+              }
+            </p>
+            <p className="text-sm text-gray-500 mb-4 font-mono bg-gray-50 p-2 rounded">
+              URL: {url}
+            </p>
+            <div className="space-x-2">
+              <button
+                onClick={() => window.open(url, '_blank')}
+                className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 transition-colors"
+              >
+                Open in YouTube
+              </button>
+              <button
+                onClick={() => {
+                  setHasError(false);
+                  setLoadingTimeout(false);
+                  setIsReady(false);
+                }}
+                className="bg-gray-600 text-white px-4 py-2 rounded-md hover:bg-gray-700 transition-colors"
+              >
+                Retry
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -237,7 +281,7 @@ const ReactPlayerProgressTracker: React.FC<ReactPlayerProgressTrackerProps> = ({
       <div className="relative aspect-video bg-black rounded-lg overflow-hidden">
         <Player
           ref={playerRef}
-          src={url}
+          url={url}
           width="100%"
           height="100%"
           controls
