@@ -2,9 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useUnits } from '../hooks/useUnits';
-import SimpleVideoPlayer from './SimpleVideoPlayer';
+import BasicVideoPlayer from './BasicVideoPlayer';
 import { getEmbeddableActivityUrl, getActivityInstructions } from '../utils/activityUrls';
-// import { optimizeYouTubeUrl } from '../utils/youtube'; // Not needed with ReactPlayer
 import { OptimizedProgressTracker } from '../utils/firebase-optimized';
 
 const UnitLearning: React.FC = () => {
@@ -93,12 +92,6 @@ const UnitLearning: React.FC = () => {
     }
   };
 
-  const handleVideoComplete = async () => {
-    setVideoWatched(true);
-    setActivityUnlocked(true);
-    await updateUserProgress(true, activityCompleted);
-    // Don't auto-navigate to activity - let user choose when to continue
-  };
 
 
   const handleActivityComplete = async () => {
@@ -226,44 +219,22 @@ const UnitLearning: React.FC = () => {
                 {unit.description}
               </p>
 
-              <SimpleVideoPlayer
+              <BasicVideoPlayer
                 url={unit.videoUrl}
                 title={unit.title}
-                onVideoWatched={handleVideoComplete}
               />
 
-              {/* Activity Button with Smart States */}
+              {/* Activity Button - Always Available */}
               <div className="mt-6">
-                {activityUnlocked || videoWatched ? (
-                  <button
-                    onClick={() => setCurrentStep('activity')}
-                    className="bg-green-600 text-white px-6 py-3 rounded-md hover:bg-green-700 transition-colors flex items-center gap-2 w-full justify-center"
-                  >
-                    {activityCompleted ? '🔄 Redo Activity' : '🎯 Continue to Activity'}
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                    </svg>
-                  </button>
-                ) : (
-                  <div className="space-y-3">
-                    <button
-                      disabled
-                      className="bg-gray-400 text-white px-6 py-3 rounded-md cursor-not-allowed flex items-center gap-2 w-full justify-center opacity-60"
-                    >
-                      🔒 Activity Locked
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-                      </svg>
-                    </button>
-
-                    {/* Simple messaging */}
-                    <div className="text-center text-sm">
-                      <p className="text-gray-600">
-                        ▶️ <strong>Watch the video</strong> to unlock the activity.
-                      </p>
-                    </div>
-                  </div>
-                )}
+                <button
+                  onClick={() => setCurrentStep('activity')}
+                  className="bg-green-600 text-white px-6 py-3 rounded-md hover:bg-green-700 transition-colors flex items-center gap-2 w-full justify-center"
+                >
+                  {activityCompleted ? '🔄 Redo Activity' : '🎯 Go to Activity'}
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                  </svg>
+                </button>
               </div>
             </div>
           </div>
@@ -271,25 +242,6 @@ const UnitLearning: React.FC = () => {
 
         {currentStep === 'activity' && (
           <div className="space-y-6">
-            {!activityUnlocked && !videoWatched && (
-              <div className="bg-red-50 border border-red-200 rounded-md p-4">
-                <div className="flex items-center gap-2 text-red-800 mb-1">
-                  <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
-                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
-                  </svg>
-                  <span className="font-medium">Activity Locked</span>
-                </div>
-                <p className="text-sm text-red-700">
-                  You need to watch the video to unlock this activity.
-                </p>
-                <button
-                  onClick={() => setCurrentStep('video')}
-                  className="mt-2 bg-red-100 text-red-800 hover:bg-red-200 px-3 py-1 rounded text-sm transition-colors"
-                >
-                  ← Go back to video
-                </button>
-              </div>
-            )}
 
             <div className="bg-white rounded-lg shadow-md overflow-hidden">
               <div className="p-6 border-b">
@@ -302,86 +254,73 @@ const UnitLearning: React.FC = () => {
                       Complete this activity to test your understanding of the video content.
                     </p>
                   </div>
-                  {videoWatched && (
-                    <button
-                      onClick={() => setCurrentStep('video')}
-                      className="ml-4 bg-gray-100 hover:bg-gray-200 text-gray-700 px-4 py-2 rounded-md transition-colors flex items-center gap-2 text-sm"
-                    >
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-                      </svg>
-                      Back to Video
-                    </button>
-                  )}
+                  <button
+                    onClick={() => setCurrentStep('video')}
+                    className="ml-4 bg-gray-100 hover:bg-gray-200 text-gray-700 px-4 py-2 rounded-md transition-colors flex items-center gap-2 text-sm"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                    </svg>
+                    Back to Video
+                  </button>
                 </div>
               </div>
 
-              {videoWatched ? (
-                <>
-                  <div className="aspect-video">
-                    <iframe
-                      src={getEmbeddableActivityUrl(unit.activityUrl, unit.activityType)}
-                      className="w-full h-full"
-                      style={{maxWidth: '100%'}}
-                      width="500"
-                      height="380"
-                      frameBorder="0"
-                      allowFullScreen
-                      title={`${unit.title} Activity`}
-                    ></iframe>
-                  </div>
+              <div className="aspect-video">
+                <iframe
+                  src={getEmbeddableActivityUrl(unit.activityUrl, unit.activityType)}
+                  className="w-full h-full"
+                  style={{maxWidth: '100%'}}
+                  width="500"
+                  height="380"
+                  frameBorder="0"
+                  allowFullScreen
+                  title={`${unit.title} Activity`}
+                ></iframe>
+              </div>
 
-                  <div className="p-6">
-                    {!activityCompleted ? (
-                      <div className="space-y-4">
-                        <p className="text-sm text-gray-600 bg-blue-50 p-3 rounded-md">
-                          🎮 {getActivityInstructions(unit.activityType)}
-                        </p>
-                        <button
-                          onClick={handleActivityComplete}
-                          disabled={saving}
-                          className="bg-green-600 text-white px-6 py-3 rounded-md hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
-                        >
-                          {saving ? (
-                            <>
-                              <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                              Saving...
-                            </>
-                          ) : (
-                            <>
-                              I'm Done with Activity
-                              <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-                                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                              </svg>
-                            </>
-                          )}
-                        </button>
-                      </div>
-                    ) : (
-                      <div className="bg-green-50 p-6 rounded-md text-center">
-                        <div className="text-4xl mb-3">🎉</div>
-                        <h3 className="font-bold text-green-900 mb-2">Congratulations!</h3>
-                        <p className="text-green-700 mb-4">
-                          You've completed "{unit.title}"! Great job learning these important life skills.
-                        </p>
-                        <button
-                          onClick={goBackToDashboard}
-                          className="bg-blue-600 text-white px-6 py-2 rounded-md hover:bg-blue-700 transition-colors"
-                        >
-                          Back to Dashboard
-                        </button>
-                      </div>
-                    )}
+              <div className="p-6">
+                {!activityCompleted ? (
+                  <div className="space-y-4">
+                    <p className="text-sm text-gray-600 bg-blue-50 p-3 rounded-md">
+                      🎮 {getActivityInstructions(unit.activityType)}
+                    </p>
+                    <button
+                      onClick={handleActivityComplete}
+                      disabled={saving}
+                      className="bg-green-600 text-white px-6 py-3 rounded-md hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
+                    >
+                      {saving ? (
+                        <>
+                          <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                          Saving...
+                        </>
+                      ) : (
+                        <>
+                          I'm Done with Activity
+                          <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                            <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                          </svg>
+                        </>
+                      )}
+                    </button>
                   </div>
-                </>
-              ) : (
-                <div className="aspect-video bg-gray-100 flex items-center justify-center">
-                  <div className="text-center text-gray-500">
-                    <div className="text-4xl mb-2">🔒</div>
-                    <p>Activity locked until video is completed</p>
+                ) : (
+                  <div className="bg-green-50 p-6 rounded-md text-center">
+                    <div className="text-4xl mb-3">🎉</div>
+                    <h3 className="font-bold text-green-900 mb-2">Congratulations!</h3>
+                    <p className="text-green-700 mb-4">
+                      You've completed "{unit.title}"! Great job learning these important life skills.
+                    </p>
+                    <button
+                      onClick={goBackToDashboard}
+                      className="bg-blue-600 text-white px-6 py-2 rounded-md hover:bg-blue-700 transition-colors"
+                    >
+                      Back to Dashboard
+                    </button>
                   </div>
-                </div>
-              )}
+                )}
+              </div>
             </div>
           </div>
         )}
