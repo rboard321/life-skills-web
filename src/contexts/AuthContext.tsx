@@ -12,11 +12,15 @@ import {
 } from 'firebase/auth';
 import { auth, db } from '../firebase';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { assignTeacherCode } from '../utils/teacherCodeGenerator';
+import { StudentAccess } from '../utils/teacherAssignments';
 
 interface AuthContextType {
   currentUser: User | null;
   loading: boolean;
   role: string | null;
+  teacherCode: string | null;
+  assignedTeacherCode: string | null;
   isTeacher: boolean;
   isAdmin: boolean;
   signup: (
@@ -26,6 +30,7 @@ interface AuthContextType {
     role: string
   ) => Promise<void>;
   login: (email: string, password: string) => Promise<void>;
+  loginWithTeacherCode: (email: string, password: string, teacherCode: string) => Promise<void>;
   logout: () => Promise<void>;
   resetPassword: (email: string) => Promise<void>;
 }
@@ -45,6 +50,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [role, setRole] = useState<string | null>(null);
+  const [teacherCode, setTeacherCode] = useState<string | null>(null);
+  const [assignedTeacherCode, setAssignedTeacherCode] = useState<string | null>(null);
 
   const signup = async (
     email: string,
@@ -55,18 +62,46 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const userCredential = await createUserWithEmailAndPassword(auth, email, password);
     if (userCredential.user) {
       await updateProfile(userCredential.user, { displayName });
-      await setDoc(doc(db, 'users', userCredential.user.uid), {
+
+      const userData: any = {
         uid: userCredential.user.uid,
         displayName,
         email,
-        role: userRole
-      });
+        role: userRole,
+        createdAt: new Date(),
+        lastActive: new Date()
+      };
+
+      // If teacher, assign a teacher code
+      if (userRole === 'teacher') {
+        const newTeacherCode = await assignTeacherCode(userCredential.user.uid);
+        userData.teacherCode = newTeacherCode;
+        setTeacherCode(newTeacherCode);
+      }
+
+      await setDoc(doc(db, 'users', userCredential.user.uid), userData);
       setRole(userRole);
     }
   };
 
   const login = async (email: string, password: string): Promise<void> => {
     await signInWithEmailAndPassword(auth, email, password);
+  };
+
+  const loginWithTeacherCode = async (email: string, password: string, teacherCode: string): Promise<void> => {
+    // First validate the teacher code
+    const validation = await StudentAccess.validateTeacherCode(teacherCode);
+    if (!validation.valid) {
+      throw new Error('Invalid teacher code');
+    }
+
+    // Login the user
+    const userCredential = await signInWithEmailAndPassword(auth, email, password);
+
+    // Assign the teacher code to the student
+    if (userCredential.user) {
+      await StudentAccess.assignStudentToTeacher(userCredential.user.uid, teacherCode);
+    }
   };
 
   const logout = async (): Promise<void> => {
@@ -85,12 +120,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           const userDoc = await getDoc(doc(db, 'users', user.uid));
           const data = userDoc.data();
           setRole((data?.role as string) || null);
+          setTeacherCode((data?.teacherCode as string) || null);
+          setAssignedTeacherCode((data?.assignedTeacherCode as string) || null);
         } catch (err) {
-          console.error('Failed to fetch user role:', err);
+          console.error('Failed to fetch user data:', err);
           setRole(null);
+          setTeacherCode(null);
+          setAssignedTeacherCode(null);
         }
       } else {
         setRole(null);
+        setTeacherCode(null);
+        setAssignedTeacherCode(null);
       }
       setLoading(false);
     });
@@ -102,10 +143,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     currentUser,
     loading,
     role,
+    teacherCode,
+    assignedTeacherCode,
     isTeacher: role === 'teacher',
     isAdmin: role === 'teacher',
     signup,
     login,
+    loginWithTeacherCode,
     logout,
     resetPassword,
   };

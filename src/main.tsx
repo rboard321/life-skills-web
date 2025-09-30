@@ -1,7 +1,7 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import './index.css';
-import StudentDashboard from './components/StudentDashboard';
+import DashboardRouter from './components/DashboardRouter';
 import UnitLearning from './components/UnitLearning';
 import SimpleAdminPage from './components/SimpleAdminPage';
 import Login from './components/auth/Login';
@@ -40,7 +40,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
               path="/"
               element={
                 <ProtectedRoute>
-                  <StudentDashboard />
+                  <DashboardRouter />
                 </ProtectedRoute>
               }
             />

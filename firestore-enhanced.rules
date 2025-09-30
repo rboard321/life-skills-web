@@ -1,0 +1,132 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Helper functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function getUserRole() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() && getUserRole() == 'admin';
+    }
+
+    function isTeacher() {
+      return isAuthenticated() && getUserRole() == 'teacher';
+    }
+
+    function isStudent() {
+      return isAuthenticated() && getUserRole() == 'student';
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    // USERS COLLECTION
+    match /users/{userId} {
+      // Users can read/write their own document, admins can read all
+      allow read: if isOwner(userId) || isAdmin();
+      allow write: if isOwner(userId) || isAdmin();
+
+      // Allow user creation on signup
+      allow create: if isAuthenticated() && isOwner(userId);
+    }
+
+    // UNITS COLLECTION (Community Library)
+    match /units/{unitId} {
+      // Anyone can read public units, teachers can read all units
+      allow read: if isAuthenticated() &&
+        (resource.data.isPublic == true || isTeacher() || isAdmin());
+
+      // Teachers can create units, only creators can edit their own units
+      allow create: if isTeacher() || isAdmin();
+      allow update: if (isTeacher() && resource.data.createdBy == request.auth.uid) || isAdmin();
+      allow delete: if (isTeacher() && resource.data.createdBy == request.auth.uid) || isAdmin();
+    }
+
+    // CLASSES COLLECTION
+    match /classes/{classId} {
+      // Teachers can read classes they own, students can read classes they're enrolled in
+      allow read: if isAuthenticated() && (
+        (isTeacher() && resource.data.teacherId == request.auth.uid) ||
+        isAdmin() ||
+        (isStudent() && isStudentInClass(classId, request.auth.uid))
+      );
+
+      // Only teachers can create/manage classes
+      allow create: if isTeacher() || isAdmin();
+      allow update: if (isTeacher() && resource.data.teacherId == request.auth.uid) || isAdmin();
+      allow delete: if (isTeacher() && resource.data.teacherId == request.auth.uid) || isAdmin();
+    }
+
+    // CLASS MEMBERS COLLECTION
+    match /class_members/{memberId} {
+      // Students can read their own membership, teachers can read their class members
+      allow read: if isAuthenticated() && (
+        (isStudent() && resource.data.studentId == request.auth.uid) ||
+        (isTeacher() && isTeacherOfClass(resource.data.classId, request.auth.uid)) ||
+        isAdmin()
+      );
+
+      // Students can create their own enrollment (join class)
+      allow create: if isStudent() && request.auth.uid == request.resource.data.studentId;
+
+      // Teachers can update/remove students from their classes
+      allow update, delete: if (isTeacher() && isTeacherOfClass(resource.data.classId, request.auth.uid)) || isAdmin();
+    }
+
+    // ASSIGNMENTS COLLECTION
+    match /assignments/{assignmentId} {
+      // Students can read assignments for their classes, teachers can read their assignments
+      allow read: if isAuthenticated() && (
+        (isStudent() && isStudentInClass(resource.data.classId, request.auth.uid)) ||
+        (isTeacher() && isTeacherOfClass(resource.data.classId, request.auth.uid)) ||
+        isAdmin()
+      );
+
+      // Only teachers can create/manage assignments for their classes
+      allow create: if isTeacher() && isTeacherOfClass(request.resource.data.classId, request.auth.uid);
+      allow update, delete: if (isTeacher() && isTeacherOfClass(resource.data.classId, request.auth.uid)) || isAdmin();
+    }
+
+    // STUDENT PROGRESS COLLECTION
+    match /student_progress/{progressId} {
+      // Students can read/write their own progress, teachers can read their students' progress
+      allow read: if isAuthenticated() && (
+        (isStudent() && resource.data.studentId == request.auth.uid) ||
+        (isTeacher() && isTeacherOfClass(resource.data.classId, request.auth.uid)) ||
+        isAdmin()
+      );
+
+      // Students can create/update their own progress
+      allow create, update: if isStudent() && request.auth.uid == request.resource.data.studentId;
+
+      // Teachers and admins can update progress
+      allow update: if (isTeacher() && isTeacherOfClass(resource.data.classId, request.auth.uid)) || isAdmin();
+
+      // Only admins can delete progress records
+      allow delete: if isAdmin();
+    }
+
+    // Helper functions for class membership checks
+    function isStudentInClass(classId, userId) {
+      return exists(/databases/$(database)/documents/class_members/$(userId + '_' + classId)) &&
+        get(/databases/$(database)/documents/class_members/$(userId + '_' + classId)).data.status == 'active';
+    }
+
+    function isTeacherOfClass(classId, userId) {
+      return exists(/databases/$(database)/documents/classes/$(classId)) &&
+        get(/databases/$(database)/documents/classes/$(classId)).data.teacherId == userId;
+    }
+
+    // LEGACY SUPPORT - for existing user progress structure
+    match /users/{userId}/progress/{progressId} {
+      allow read, write: if isOwner(userId) || isAdmin();
+    }
+  }
+}

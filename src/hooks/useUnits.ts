@@ -4,6 +4,7 @@ import { db } from '../firebase';
 import { useAuth } from '../contexts/AuthContext';
 import type { Unit, UserProgress } from '../data/sampleUnits';
 import { sampleUnits } from '../data/sampleUnits';
+import { StudentAccess, TeacherAssignmentManager } from '../utils/teacherAssignments';
 
 export const useUnits = (assignedOnly: boolean = false) => {
     const [units, setUnits] = useState<Unit[]>([]);
@@ -56,23 +57,42 @@ export const useUnits = (assignedOnly: boolean = false) => {
                 // Filter units based on user role and assignments
                 if (assignedOnly && currentUser && role === 'student') {
                     try {
-                        const userDoc = await getDoc(doc(db, 'users', currentUser.uid));
-                        const userData = userDoc.data();
-                        const assignedUnits = userData?.assignedUnits || [];
+                        // Use the new teacher assignment system
+                        const studentData = await StudentAccess.getStudentAssignedUnits(currentUser.uid);
 
-                        if (assignedUnits.length > 0) {
-                            allUnits = allUnits.filter(unit => assignedUnits.includes(unit.id));
+                        if (studentData.units.length > 0) {
+                            // Replace allUnits with the teacher-assigned units
+                            allUnits = studentData.units;
+                        } else {
+                            // If no assignments, show empty array
+                            allUnits = [];
                         }
 
-                        // Load user progress
+                        // For now, load legacy progress data
+                        const userDoc = await getDoc(doc(db, 'users', currentUser.uid));
+                        const userData = userDoc.data();
                         setUserProgress(userData?.completedUnits || []);
                     } catch (userError) {
-                        console.warn('Could not fetch user assignments, showing all units:', userError);
+                        console.warn('Could not fetch user assignments, showing empty list:', userError);
+                        allUnits = [];
+                    }
+                } else if (role === 'teacher') {
+                    // For teachers, show all available units
+                    try {
+                        const teacherUnits = await TeacherAssignmentManager.getAllUnits();
+                        allUnits = teacherUnits;
+                    } catch (teacherError) {
+                        console.warn('Could not fetch units for teacher:', teacherError);
                     }
                 }
 
-                // Sort by order
-                allUnits.sort((a, b) => a.order - b.order);
+                // Sort by order if available, otherwise by title
+                allUnits.sort((a, b) => {
+                    if (a.order !== undefined && b.order !== undefined) {
+                        return a.order - b.order;
+                    }
+                    return a.title.localeCompare(b.title);
+                });
                 setUnits(allUnits);
                 setError(null);
             } catch (err) {

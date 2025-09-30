@@ -5,9 +5,11 @@ import { useAuth } from '../../contexts/AuthContext';
 const Login: React.FC = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [teacherCode, setTeacherCode] = useState('');
+  const [isStudentLogin, setIsStudentLogin] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const { login } = useAuth();
+  const { login, loginWithTeacherCode } = useAuth();
   const navigate = useNavigate();
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -18,10 +20,21 @@ const Login: React.FC = () => {
       return;
     }
 
+    if (isStudentLogin && !teacherCode) {
+      setError('Please enter your teacher code');
+      return;
+    }
+
     try {
       setError('');
       setLoading(true);
-      await login(email, password);
+
+      if (isStudentLogin) {
+        await loginWithTeacherCode(email, password, teacherCode);
+      } else {
+        await login(email, password);
+      }
+
       navigate('/');
     } catch (error: unknown) {
       let errorMessage = 'Failed to log in';
@@ -58,6 +71,20 @@ const Login: React.FC = () => {
           )}
 
           <div className="space-y-4">
+            <div className="flex items-center">
+              <input
+                id="student-login"
+                name="student-login"
+                type="checkbox"
+                checked={isStudentLogin}
+                onChange={(e) => setIsStudentLogin(e.target.checked)}
+                className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+              />
+              <label htmlFor="student-login" className="ml-2 block text-sm text-gray-700">
+                I'm a student with a teacher code
+              </label>
+            </div>
+
             <div>
               <label htmlFor="email" className="block text-sm font-medium text-gray-700">
                 Email address
@@ -91,6 +118,28 @@ const Login: React.FC = () => {
                 placeholder="Enter your password"
               />
             </div>
+
+            {isStudentLogin && (
+              <div>
+                <label htmlFor="teacherCode" className="block text-sm font-medium text-gray-700">
+                  Teacher Code
+                </label>
+                <input
+                  id="teacherCode"
+                  name="teacherCode"
+                  type="text"
+                  required={isStudentLogin}
+                  value={teacherCode}
+                  onChange={(e) => setTeacherCode(e.target.value.toUpperCase())}
+                  className="mt-1 appearance-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm"
+                  placeholder="Enter your teacher's code (e.g., ABC123)"
+                  maxLength={6}
+                />
+                <p className="mt-1 text-xs text-gray-500">
+                  Enter the 6-character code provided by your teacher
+                </p>
+              </div>
+            )}
           </div>
 
           <div className="flex items-center justify-between">
