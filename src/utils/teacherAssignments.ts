@@ -303,20 +303,25 @@ export class StudentAccess {
   }
 
   /**
-   * Validates that a teacher code exists and has assigned units
+   * Validates that a teacher code exists
    */
   static async validateTeacherCode(teacherCode: string): Promise<{ valid: boolean; teacherName?: string }> {
     try {
-      const assignment = await TeacherAssignmentManager.getTeacherAssignment(teacherCode);
+      // Check if teacher code exists in users collection
+      const usersRef = collection(db, 'users');
+      const usersSnapshot = await getDocs(usersRef);
 
-      if (!assignment) {
-        return { valid: false };
+      for (const userDoc of usersSnapshot.docs) {
+        const userData = userDoc.data();
+        if (userData.teacherCode === teacherCode && userData.role === 'teacher') {
+          return {
+            valid: true,
+            teacherName: userData.displayName
+          };
+        }
       }
 
-      return {
-        valid: true,
-        teacherName: assignment.teacherName
-      };
+      return { valid: false };
     } catch (error) {
       console.error('Error validating teacher code:', error);
       return { valid: false };
