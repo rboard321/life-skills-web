@@ -12,7 +12,6 @@ import {
 } from 'firebase/auth';
 import { auth, db } from '../firebase';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
-import { assignTeacherCode } from '../utils/teacherCodeGenerator';
 import { StudentAccess } from '../utils/teacherAssignments';
 
 interface AuthContextType {
@@ -72,9 +71,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         lastActive: new Date()
       };
 
-      // If teacher, assign a teacher code
+      // If teacher, generate a teacher code
       if (userRole === 'teacher') {
-        const newTeacherCode = await assignTeacherCode(userCredential.user.uid);
+        // Generate teacher code directly instead of using assignTeacherCode
+        const { generateUniqueTeacherCode } = await import('../utils/teacherCodeGenerator');
+        const newTeacherCode = await generateUniqueTeacherCode();
         userData.teacherCode = newTeacherCode;
         setTeacherCode(newTeacherCode);
       }
