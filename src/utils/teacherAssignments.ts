@@ -307,21 +307,17 @@ export class StudentAccess {
    */
   static async validateTeacherCode(teacherCode: string): Promise<{ valid: boolean; teacherName?: string }> {
     try {
-      // Check if teacher code exists in users collection
-      const usersRef = collection(db, 'users');
-      const usersSnapshot = await getDocs(usersRef);
+      // Check if teacher code exists in teacher_assignments collection
+      const assignment = await TeacherAssignmentManager.getTeacherAssignment(teacherCode);
 
-      for (const userDoc of usersSnapshot.docs) {
-        const userData = userDoc.data();
-        if (userData.teacherCode === teacherCode && userData.role === 'teacher') {
-          return {
-            valid: true,
-            teacherName: userData.displayName
-          };
-        }
+      if (!assignment) {
+        return { valid: false };
       }
 
-      return { valid: false };
+      return {
+        valid: true,
+        teacherName: assignment.teacherName
+      };
     } catch (error) {
       console.error('Error validating teacher code:', error);
       return { valid: false };

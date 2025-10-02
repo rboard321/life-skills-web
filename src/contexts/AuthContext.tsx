@@ -71,13 +71,22 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         lastActive: new Date()
       };
 
-      // If teacher, generate a teacher code
+      // If teacher, generate a teacher code and create assignment document
       if (userRole === 'teacher') {
         // Generate teacher code directly instead of using assignTeacherCode
         const { generateUniqueTeacherCode } = await import('../utils/teacherCodeGenerator');
         const newTeacherCode = await generateUniqueTeacherCode();
         userData.teacherCode = newTeacherCode;
         setTeacherCode(newTeacherCode);
+
+        // Create teacher assignment document
+        const { TeacherAssignmentManager } = await import('../utils/teacherAssignments');
+        await TeacherAssignmentManager.assignUnitsToTeacher(
+          newTeacherCode,
+          [], // Start with no units assigned
+          displayName,
+          userCredential.user.uid
+        );
       }
 
       await setDoc(doc(db, 'users', userCredential.user.uid), userData);
