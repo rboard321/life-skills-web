@@ -8,7 +8,6 @@ const Signup: React.FC = () => {
     email: '',
     password: '',
     confirmPassword: '',
-    role: 'student',
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -27,8 +26,7 @@ const Signup: React.FC = () => {
       !formData.name ||
       !formData.email ||
       !formData.password ||
-      !formData.confirmPassword ||
-      !formData.role
+      !formData.confirmPassword
     ) {
       setError('Please fill in all fields');
       return false;
@@ -59,7 +57,7 @@ const Signup: React.FC = () => {
         formData.email,
         formData.password,
         formData.name,
-        formData.role
+        'teacher'
       );
       navigate('/');
     } catch (error: unknown) {
@@ -84,10 +82,10 @@ const Signup: React.FC = () => {
       <div className="max-w-md w-full space-y-8">
         <div>
           <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
-            Create your account
+            Create your teacher account
           </h2>
           <p className="mt-2 text-center text-sm text-gray-600">
-            Join us and start your learning journey
+            Join us and start managing your classroom
           </p>
         </div>
 
@@ -168,33 +166,6 @@ const Signup: React.FC = () => {
               />
             </div>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Role</label>
-              <div className="flex space-x-4">
-                <label className="flex items-center space-x-1">
-                  <input
-                    type="radio"
-                    name="role"
-                    value="student"
-                    checked={formData.role === 'student'}
-                    onChange={handleChange}
-                    className="form-radio"
-                  />
-                  <span className="text-sm">Student</span>
-                </label>
-                <label className="flex items-center space-x-1">
-                  <input
-                    type="radio"
-                    name="role"
-                    value="teacher"
-                    checked={formData.role === 'teacher'}
-                    onChange={handleChange}
-                    className="form-radio"
-                  />
-                  <span className="text-sm">Teacher</span>
-                </label>
-              </div>
-            </div>
           </div>
 
           <div>
@@ -203,7 +174,7 @@ const Signup: React.FC = () => {
               disabled={loading}
               className="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {loading ? 'Creating account...' : 'Create account'}
+              {loading ? 'Creating teacher account...' : 'Create teacher account'}
             </button>
           </div>
 

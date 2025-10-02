@@ -15,14 +15,18 @@ const Login: React.FC = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!email || !password) {
-      setError('Please fill in all fields');
-      return;
-    }
-
-    if (isStudentLogin && !teacherCode) {
-      setError('Please enter your teacher code');
-      return;
+    if (isStudentLogin) {
+      // Student login with just teacher code
+      if (!teacherCode) {
+        setError('Please enter your teacher code');
+        return;
+      }
+    } else {
+      // Teacher login with email and password
+      if (!email || !password) {
+        setError('Please fill in all fields');
+        return;
+      }
     }
 
     try {
@@ -30,12 +34,22 @@ const Login: React.FC = () => {
       setLoading(true);
 
       if (isStudentLogin) {
-        await loginWithTeacherCode(email, password, teacherCode);
+        // Create a temporary student session with teacher code
+        const { StudentAccess } = await import('../../utils/teacherAssignments');
+        const validation = await StudentAccess.validateTeacherCode(teacherCode);
+        if (!validation.valid) {
+          throw new Error('Invalid teacher code');
+        }
+
+        // Store teacher code in session storage for student access
+        sessionStorage.setItem('studentTeacherCode', teacherCode);
+        sessionStorage.setItem('isStudent', 'true');
+
+        navigate('/');
       } else {
         await login(email, password);
+        navigate('/');
       }
-
-      navigate('/');
     } catch (error: unknown) {
       let errorMessage = 'Failed to log in';
       if (error instanceof Error) {
@@ -85,41 +99,43 @@ const Login: React.FC = () => {
               </label>
             </div>
 
-            <div>
-              <label htmlFor="email" className="block text-sm font-medium text-gray-700">
-                Email address
-              </label>
-              <input
-                id="email"
-                name="email"
-                type="email"
-                autoComplete="email"
-                required
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className="mt-1 appearance-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm"
-                placeholder="Enter your email"
-              />
-            </div>
+            {!isStudentLogin ? (
+              <>
+                <div>
+                  <label htmlFor="email" className="block text-sm font-medium text-gray-700">
+                    Email address
+                  </label>
+                  <input
+                    id="email"
+                    name="email"
+                    type="email"
+                    autoComplete="email"
+                    required={!isStudentLogin}
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    className="mt-1 appearance-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm"
+                    placeholder="Enter your email"
+                  />
+                </div>
 
-            <div>
-              <label htmlFor="password" className="block text-sm font-medium text-gray-700">
-                Password
-              </label>
-              <input
-                id="password"
-                name="password"
-                type="password"
-                autoComplete="current-password"
-                required
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="mt-1 appearance-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm"
-                placeholder="Enter your password"
-              />
-            </div>
-
-            {isStudentLogin && (
+                <div>
+                  <label htmlFor="password" className="block text-sm font-medium text-gray-700">
+                    Password
+                  </label>
+                  <input
+                    id="password"
+                    name="password"
+                    type="password"
+                    autoComplete="current-password"
+                    required={!isStudentLogin}
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    className="mt-1 appearance-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm"
+                    placeholder="Enter your password"
+                  />
+                </div>
+              </>
+            ) : (
               <div>
                 <label htmlFor="teacherCode" className="block text-sm font-medium text-gray-700">
                   Teacher Code
@@ -131,11 +147,11 @@ const Login: React.FC = () => {
                   required={isStudentLogin}
                   value={teacherCode}
                   onChange={(e) => setTeacherCode(e.target.value.toUpperCase())}
-                  className="mt-1 appearance-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm"
-                  placeholder="Enter your teacher's code (e.g., ABC123)"
+                  className="mt-1 appearance-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm text-center text-2xl font-mono tracking-widest"
+                  placeholder="ABC123"
                   maxLength={6}
                 />
-                <p className="mt-1 text-xs text-gray-500">
+                <p className="mt-1 text-xs text-gray-500 text-center">
                   Enter the 6-character code provided by your teacher
                 </p>
               </div>

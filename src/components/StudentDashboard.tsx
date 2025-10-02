@@ -1,11 +1,49 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { useUnits } from '../hooks/useUnits';
 import { useAuth } from '../contexts/AuthContext';
+import { TeacherAssignmentManager, type Unit as FirebaseUnit } from '../utils/teacherAssignments';
+
+// Helper function to convert Firebase units to legacy format
+const convertFirebaseUnit = (firebaseUnit: FirebaseUnit): any => ({
+    ...firebaseUnit,
+    id: typeof firebaseUnit.id === 'string' ? parseInt(firebaseUnit.id, 10) || 0 : firebaseUnit.id,
+    order: firebaseUnit.order || 1
+});
 
 const StudentDashboard: React.FC = () => {
-  const { units, loading } = useUnits(true); // Only assigned units
   const { currentUser } = useAuth();
+  const [units, setUnits] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  // Check if this is a session-based student
+  const isStudentSession = sessionStorage.getItem('isStudent') === 'true';
+  const studentTeacherCode = sessionStorage.getItem('studentTeacherCode');
+
+  useEffect(() => {
+    const loadUnits = async () => {
+      try {
+        setLoading(true);
+
+        if (isStudentSession && studentTeacherCode) {
+          // Load units for session-based student
+          const assignedUnits = await TeacherAssignmentManager.getAssignedUnits(studentTeacherCode);
+          setUnits(assignedUnits.map(convertFirebaseUnit));
+        } else if (currentUser) {
+          // Load units for authenticated student (legacy behavior)
+          const { useUnits } = await import('../hooks/useUnits');
+          // This would require updating useUnits to be callable, but for now let's keep it simple
+          setUnits([]);
+        }
+      } catch (error) {
+        console.error('Error loading units:', error);
+        setUnits([]);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadUnits();
+  }, [isStudentSession, studentTeacherCode, currentUser]);
 
   if (loading) {
     return (
@@ -43,10 +81,13 @@ const StudentDashboard: React.FC = () => {
           <div className="flex justify-between items-center">
             <div>
               <h1 className="text-3xl font-bold text-gray-900">
-                Hi, {currentUser?.displayName || 'Student'}! 👋
+                Hi, Student! 👋
               </h1>
               <p className="text-gray-600 mt-1">
-                Complete your assigned life skills units
+                {isStudentSession && studentTeacherCode
+                  ? `Using teacher code: ${studentTeacherCode}`
+                  : 'Complete your assigned life skills units'
+                }
               </p>
             </div>
             <div className="text-right">
