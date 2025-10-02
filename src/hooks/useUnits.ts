@@ -4,7 +4,14 @@ import { db } from '../firebase';
 import { useAuth } from '../contexts/AuthContext';
 import type { Unit, UserProgress } from '../data/sampleUnits';
 import { sampleUnits } from '../data/sampleUnits';
-import { StudentAccess, TeacherAssignmentManager } from '../utils/teacherAssignments';
+import { StudentAccess, TeacherAssignmentManager, type Unit as FirebaseUnit } from '../utils/teacherAssignments';
+
+// Helper function to convert Firebase units to legacy format
+const convertFirebaseUnit = (firebaseUnit: FirebaseUnit): Unit => ({
+    ...firebaseUnit,
+    id: typeof firebaseUnit.id === 'string' ? parseInt(firebaseUnit.id, 10) || 0 : firebaseUnit.id,
+    order: firebaseUnit.order || 1
+});
 
 export const useUnits = (assignedOnly: boolean = false) => {
     const [units, setUnits] = useState<Unit[]>([]);
@@ -61,8 +68,8 @@ export const useUnits = (assignedOnly: boolean = false) => {
                         const studentData = await StudentAccess.getStudentAssignedUnits(currentUser.uid);
 
                         if (studentData.units.length > 0) {
-                            // Replace allUnits with the teacher-assigned units
-                            allUnits = studentData.units;
+                            // Convert Firebase units to legacy format
+                            allUnits = studentData.units.map(convertFirebaseUnit);
                         } else {
                             // If no assignments, show empty array
                             allUnits = [];
@@ -80,7 +87,7 @@ export const useUnits = (assignedOnly: boolean = false) => {
                     // For teachers, show all available units
                     try {
                         const teacherUnits = await TeacherAssignmentManager.getAllUnits();
-                        allUnits = teacherUnits;
+                        allUnits = teacherUnits.map(convertFirebaseUnit);
                     } catch (teacherError) {
                         console.warn('Could not fetch units for teacher:', teacherError);
                     }

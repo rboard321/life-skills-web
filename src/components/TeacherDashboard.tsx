@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import { TeacherAssignmentManager, Unit } from '../utils/teacherAssignments';
+import { TeacherAssignmentManager, type Unit } from '../utils/teacherAssignments';
 
 const TeacherDashboard: React.FC = () => {
   const { currentUser, teacherCode, isTeacher } = useAuth();
@@ -35,23 +35,24 @@ const TeacherDashboard: React.FC = () => {
     loadData();
   }, [isTeacher, teacherCode, currentUser]);
 
-  const toggleUnitAssignment = async (unitId: string) => {
+  const toggleUnitAssignment = async (unitId: number | string) => {
     if (!teacherCode || !currentUser) return;
 
     try {
-      const isCurrentlyAssigned = assignedUnitIds.includes(unitId);
+      const unitIdString = String(unitId);
+      const isCurrentlyAssigned = assignedUnitIds.includes(unitIdString);
 
       if (isCurrentlyAssigned) {
-        await TeacherAssignmentManager.removeUnitFromTeacher(teacherCode, unitId);
-        setAssignedUnitIds(prev => prev.filter(id => id !== unitId));
+        await TeacherAssignmentManager.removeUnitFromTeacher(teacherCode, unitIdString);
+        setAssignedUnitIds(prev => prev.filter(id => id !== unitIdString));
       } else {
         await TeacherAssignmentManager.addUnitToTeacher(
           teacherCode,
-          unitId,
+          unitIdString,
           currentUser.displayName || currentUser.email || 'Teacher',
           currentUser.uid
         );
-        setAssignedUnitIds(prev => [...prev, unitId]);
+        setAssignedUnitIds(prev => [...prev, unitIdString]);
       }
     } catch (err) {
       console.error('Error updating assignment:', err);
@@ -149,7 +150,7 @@ const TeacherDashboard: React.FC = () => {
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {allUnits.map((unit) => {
-                const isAssigned = assignedUnitIds.includes(unit.id);
+                const isAssigned = assignedUnitIds.includes(String(unit.id));
                 return (
                   <div
                     key={unit.id}

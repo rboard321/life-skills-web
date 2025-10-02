@@ -4,8 +4,6 @@ import {
   setDoc,
   getDoc,
   getDocs,
-  query,
-  where,
   updateDoc
 } from 'firebase/firestore';
 import { db } from '../firebase';
@@ -19,7 +17,7 @@ export interface TeacherAssignment {
 }
 
 export interface Unit {
-  id: string;
+  id: number | string; // Support both legacy (number) and new (string) formats
   title: string;
   description: string;
   videoUrl: string;
@@ -86,9 +84,10 @@ export class TeacherAssignmentManager {
         const unitDoc = await getDoc(unitRef);
 
         if (unitDoc.exists()) {
+          const unitData = unitDoc.data();
           units.push({
-            id: unitDoc.id,
-            ...unitDoc.data()
+            id: unitData.id || unitDoc.id, // Use data.id if available, fallback to doc.id
+            ...unitData
           } as Unit);
         }
       }
@@ -200,10 +199,13 @@ export class TeacherAssignmentManager {
       const unitsRef = collection(db, 'units');
       const unitsSnapshot = await getDocs(unitsRef);
 
-      const units = unitsSnapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      })) as Unit[];
+      const units = unitsSnapshot.docs.map(doc => {
+        const unitData = doc.data();
+        return {
+          id: unitData.id || doc.id, // Use data.id if available, fallback to doc.id
+          ...unitData
+        };
+      }) as Unit[];
 
       // Filter active units and sort by order
       const activeUnits = units.filter(unit => unit.isActive !== false);
