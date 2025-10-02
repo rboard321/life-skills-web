@@ -6,10 +6,21 @@ const Navbar: React.FC = () => {
   const { currentUser, logout, isTeacher } = useAuth();
   const navigate = useNavigate();
 
+  // Check if this is a student session
+  const isStudentSession = sessionStorage.getItem('isStudent') === 'true';
+  const studentTeacherCode = sessionStorage.getItem('studentTeacherCode');
+
   const handleLogout = async () => {
     try {
-      await logout();
-      navigate('/login');
+      if (isStudentSession) {
+        // Clear student session storage
+        sessionStorage.removeItem('isStudent');
+        sessionStorage.removeItem('studentTeacherCode');
+        navigate('/login');
+      } else {
+        await logout();
+        navigate('/login');
+      }
     } catch {
       console.error('Failed to log out');
     }
@@ -26,10 +37,13 @@ const Navbar: React.FC = () => {
           </div>
 
           <div className="flex items-center space-x-4">
-            {currentUser ? (
+            {currentUser || (isStudentSession && studentTeacherCode) ? (
               <>
                 <span className="text-gray-700">
-                  Hi, {currentUser.displayName || currentUser.email}
+                  {currentUser
+                    ? `Hi, ${currentUser.displayName || currentUser.email}`
+                    : `Student (Code: ${studentTeacherCode})`
+                  }
                 </span>
                 {isTeacher && (
                   <Link
