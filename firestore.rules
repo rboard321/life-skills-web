@@ -20,8 +20,8 @@ service cloud.firestore {
 
     // Units collection rules
     match /units/{unitId} {
-      // Allow read for all authenticated users
-      allow read: if isAuthenticated();
+      // Allow read for all users (including unauthenticated students with teacher codes)
+      allow read: if true;
       // Allow write only for users with teacher role
       allow write: if isTeacher();
     }
@@ -49,8 +49,8 @@ service cloud.firestore {
       // Teachers can read and write their own assignments
       allow read, write: if isAuthenticated() &&
         (isTeacher() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.teacherCode == teacherCode);
-      // All authenticated users can read assignments (for student access validation)
-      allow read: if isAuthenticated();
+      // Allow unauthenticated read access for student teacher code validation
+      allow read: if true;
     }
 
     // Student progress collection rules (for new assignment-based progress)
