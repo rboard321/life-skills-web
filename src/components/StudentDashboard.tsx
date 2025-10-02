@@ -26,8 +26,12 @@ const StudentDashboard: React.FC = () => {
 
         if (isStudentSession && studentTeacherCode) {
           // Load units for session-based student
+          console.log('Loading units for teacher code:', studentTeacherCode);
           const assignedUnits = await TeacherAssignmentManager.getAssignedUnits(studentTeacherCode);
-          setUnits(assignedUnits.map(convertFirebaseUnit));
+          console.log('Raw assigned units:', assignedUnits);
+          const convertedUnits = assignedUnits.map(convertFirebaseUnit);
+          console.log('Converted units:', convertedUnits);
+          setUnits(convertedUnits);
         } else if (currentUser) {
           // Load units for authenticated student (legacy behavior)
           // This would require updating useUnits to be callable, but for now let's keep it simple
