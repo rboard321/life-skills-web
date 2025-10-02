@@ -30,7 +30,6 @@ const StudentDashboard: React.FC = () => {
           setUnits(assignedUnits.map(convertFirebaseUnit));
         } else if (currentUser) {
           // Load units for authenticated student (legacy behavior)
-          const { useUnits } = await import('../hooks/useUnits');
           // This would require updating useUnits to be callable, but for now let's keep it simple
           setUnits([]);
         }
