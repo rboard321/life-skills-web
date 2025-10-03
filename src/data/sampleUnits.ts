@@ -9,7 +9,7 @@ export type Activity = {
 
 // Simplified Unit - direct video + activity, no lessons
 export type Unit = {
-  id: number;
+  id: number | string; // Support both legacy (number) and new (string) formats
   title: string;
   description: string;
   videoUrl: string;
@@ -19,6 +19,11 @@ export type Unit = {
   isActive?: boolean;
   createdAt?: Date;
   updatedAt?: Date;
+  // Library system fields
+  isPrivate?: boolean;        // Private vs Public units
+  createdBy?: string;         // Teacher ID who created it
+  addedToLibrary?: Date;      // When added to teacher's library
+  originalCreator?: string;   // Original creator if copied from global
 };
 
 // User progress tracking (legacy - use UserProgressData from firebase-optimized.ts for new implementation)

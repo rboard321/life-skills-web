@@ -1,16 +1,23 @@
 import React, { useState, useEffect } from 'react';
-import { collection, addDoc, getDocs, doc, deleteDoc, updateDoc } from 'firebase/firestore';
+import { collection, addDoc, getDocs, doc, updateDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 import type { Unit } from '../data/sampleUnits';
 import { optimizeYouTubeUrl, getYouTubeWatchUrl } from '../utils/youtube';
+import { useAuth } from '../contexts/AuthContext';
+import { LibraryManager } from '../utils/libraryManager';
 
 interface FirebaseUnit extends Unit {
   docId: string;
 }
 
 const SimpleAdminPage: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<'create' | 'manage' | 'assign'>('create');
+  const { currentUser } = useAuth();
+  const [activeTab, setActiveTab] = useState<'create' | 'my-library' | 'global-library'>('create');
   const [existingUnits, setExistingUnits] = useState<FirebaseUnit[]>([]);
+  const [myLibraryUnits, setMyLibraryUnits] = useState<FirebaseUnit[]>([]);
+  const [globalLibraryUnits, setGlobalLibraryUnits] = useState<FirebaseUnit[]>([]);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [activityTypeFilter, setActivityTypeFilter] = useState<'all' | 'h5p' | 'wordwall'>('all');
 
   // Unit creation state
   const [title, setTitle] = useState('');
@@ -20,6 +27,7 @@ const SimpleAdminPage: React.FC = () => {
   const [activityType, setActivityType] = useState<'h5p' | 'wordwall'>('h5p');
   const [order, setOrder] = useState(1);
   const [isActive, setIsActive] = useState(true);
+  const [isPrivate, setIsPrivate] = useState(false);
 
   // Loading states
   const [loading, setLoading] = useState(false);
@@ -37,7 +45,45 @@ const SimpleAdminPage: React.FC = () => {
 
   useEffect(() => {
     loadUnits();
-  }, []);
+    loadMyLibrary();
+  }, [currentUser]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (activeTab === 'global-library') {
+      loadGlobalLibrary();
+    }
+  }, [activeTab, searchTerm, activityTypeFilter]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const loadMyLibrary = async () => {
+    if (!currentUser?.uid) return;
+
+    try {
+      const libraryUnits = await LibraryManager.getTeacherLibrary(currentUser.uid);
+      const unitsWithDocId = libraryUnits.map(unit => ({
+        ...unit,
+        docId: typeof unit.id === 'string' ? unit.id : String(unit.id)
+      })) as FirebaseUnit[];
+      setMyLibraryUnits(unitsWithDocId);
+    } catch (error) {
+      console.error('Error loading teacher library:', error);
+    }
+  };
+
+  const loadGlobalLibrary = async () => {
+    try {
+      const searchString = searchTerm.trim() || undefined;
+      const activityType = activityTypeFilter === 'all' ? undefined : activityTypeFilter;
+
+      const globalUnits = await LibraryManager.getGlobalLibrary(searchString, activityType);
+      const unitsWithDocId = globalUnits.map(unit => ({
+        ...unit,
+        docId: typeof unit.id === 'string' ? unit.id : String(unit.id)
+      })) as FirebaseUnit[];
+      setGlobalLibraryUnits(unitsWithDocId);
+    } catch (error) {
+      console.error('Error loading global library:', error);
+    }
+  };
 
   const loadUnits = async () => {
     try {
@@ -94,11 +140,18 @@ const SimpleAdminPage: React.FC = () => {
         activityType,
         order,
         isActive,
+        isPrivate,
+        createdBy: currentUser?.uid,
         createdAt: new Date(),
         updatedAt: new Date()
       };
 
-      await addDoc(collection(db, 'units'), newUnit);
+      const docRef = await addDoc(collection(db, 'units'), newUnit);
+
+      // Automatically add the created unit to the teacher's library
+      if (currentUser?.uid) {
+        await LibraryManager.addUnitToTeacherLibrary(currentUser.uid, docRef.id);
+      }
 
       // Reset form
       setTitle('');
@@ -106,10 +159,12 @@ const SimpleAdminPage: React.FC = () => {
       setVideoUrl('');
       setActivityUrl('');
       setActivityType('h5p');
+      setIsPrivate(false);
       setIsActive(true);
 
-      // Reload units
+      // Reload units and library
       await loadUnits();
+      await loadMyLibrary();
 
       alert('Unit created successfully! 🎉');
     } catch (error) {
@@ -120,20 +175,6 @@ const SimpleAdminPage: React.FC = () => {
     }
   };
 
-  const handleDeleteUnit = async (unit: FirebaseUnit) => {
-    if (!confirm(`Delete "${unit.title}"? This cannot be undone.`)) {
-      return;
-    }
-
-    try {
-      await deleteDoc(doc(db, 'units', unit.docId));
-      await loadUnits();
-      alert('Unit deleted successfully');
-    } catch (error) {
-      console.error('Error deleting unit:', error);
-      alert('Failed to delete unit');
-    }
-  };
 
   const handleEditUnit = (unit: FirebaseUnit) => {
     setEditingUnit(unit);
@@ -205,6 +246,55 @@ const SimpleAdminPage: React.FC = () => {
     setEditOrder(1);
   };
 
+  const handleTogglePrivacy = async (unit: FirebaseUnit) => {
+    if (!currentUser?.uid || unit.createdBy !== currentUser.uid) {
+      alert('You can only change privacy settings for units you created.');
+      return;
+    }
+
+    try {
+      await LibraryManager.toggleUnitPrivacy(unit.docId, currentUser.uid);
+      await loadMyLibrary();
+    } catch (error) {
+      console.error('Error toggling privacy:', error);
+      alert('Failed to update privacy setting.');
+    }
+  };
+
+  const handleRemoveFromLibrary = async (unit: FirebaseUnit) => {
+    if (!currentUser?.uid) return;
+
+    if (confirm(`Remove "${unit.title}" from your library? This won't delete the unit.`)) {
+      try {
+        await LibraryManager.removeUnitFromTeacherLibrary(currentUser.uid, unit.docId);
+        await loadMyLibrary();
+      } catch (error) {
+        console.error('Error removing from library:', error);
+        alert('Failed to remove unit from library.');
+      }
+    }
+  };
+
+  const handleCopyToLibrary = async (unit: FirebaseUnit) => {
+    if (!currentUser?.uid) return;
+
+    try {
+      // Check if already in library
+      const isInLibrary = await LibraryManager.isUnitInTeacherLibrary(currentUser.uid, unit.docId);
+      if (isInLibrary) {
+        alert('This unit is already in your library.');
+        return;
+      }
+
+      await LibraryManager.copyUnitToLibrary(unit.docId, currentUser.uid);
+      await loadMyLibrary();
+      alert(`"${unit.title}" added to your library!`);
+    } catch (error) {
+      console.error('Error copying to library:', error);
+      alert('Failed to add unit to library.');
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
@@ -230,24 +320,24 @@ const SimpleAdminPage: React.FC = () => {
               Create Units
             </button>
             <button
-              onClick={() => setActiveTab('manage')}
+              onClick={() => setActiveTab('my-library')}
               className={`py-4 px-2 border-b-2 font-medium text-sm ${
-                activeTab === 'manage'
+                activeTab === 'my-library'
                   ? 'border-blue-500 text-blue-600'
                   : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
               }`}
             >
-              Manage Units ({existingUnits.length})
+              My Library ({existingUnits.length})
             </button>
             <button
-              onClick={() => setActiveTab('assign')}
+              onClick={() => setActiveTab('global-library')}
               className={`py-4 px-2 border-b-2 font-medium text-sm ${
-                activeTab === 'assign'
+                activeTab === 'global-library'
                   ? 'border-blue-500 text-blue-600'
                   : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
               }`}
             >
-              Assign to Students
+              Global Library
             </button>
           </div>
         </div>
@@ -286,6 +376,24 @@ const SimpleAdminPage: React.FC = () => {
                     min="1"
                   />
                   <p className="text-xs text-gray-500 mt-1">Order in which students see this unit</p>
+                </div>
+
+                <div>
+                  <div className="flex items-center">
+                    <input
+                      type="checkbox"
+                      id="isPrivate"
+                      checked={isPrivate}
+                      onChange={(e) => setIsPrivate(e.target.checked)}
+                      className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                    />
+                    <label htmlFor="isPrivate" className="ml-2 block text-sm text-gray-700">
+                      Keep this unit private
+                    </label>
+                  </div>
+                  <p className="text-xs text-gray-500 mt-1">
+                    Private units are only visible to you. Uncheck to share in global library.
+                  </p>
                 </div>
               </div>
 
@@ -398,30 +506,43 @@ const SimpleAdminPage: React.FC = () => {
           </div>
         )}
 
-        {activeTab === 'manage' && (
+        {activeTab === 'my-library' && (
           <div className="bg-white rounded-lg shadow-sm p-6">
-            <h2 className="text-2xl font-semibold text-gray-900 mb-6">Manage Existing Units</h2>
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="text-2xl font-semibold text-gray-900">My Library</h2>
+              <div className="text-sm text-gray-600">
+                {myLibraryUnits.length} units in your library
+              </div>
+            </div>
 
             {unitsLoading ? (
               <div className="text-center py-8">
                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-2"></div>
-                <p className="text-gray-600">Loading units...</p>
+                <p className="text-gray-600">Loading your library...</p>
               </div>
-            ) : existingUnits.length === 0 ? (
+            ) : myLibraryUnits.length === 0 ? (
               <div className="text-center py-8">
                 <div className="text-4xl mb-4">📚</div>
-                <h3 className="text-lg font-medium text-gray-900 mb-2">No Units Created Yet</h3>
-                <p className="text-gray-600 mb-4">Create your first unit to get started!</p>
-                <button
-                  onClick={() => setActiveTab('create')}
-                  className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 transition-colors"
-                >
-                  Create First Unit
-                </button>
+                <h3 className="text-lg font-medium text-gray-900 mb-2">Your Library is Empty</h3>
+                <p className="text-gray-600 mb-4">Create units or copy from the global library to get started!</p>
+                <div className="space-x-3">
+                  <button
+                    onClick={() => setActiveTab('create')}
+                    className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 transition-colors"
+                  >
+                    Create Unit
+                  </button>
+                  <button
+                    onClick={() => setActiveTab('global-library')}
+                    className="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 transition-colors"
+                  >
+                    Browse Global Library
+                  </button>
+                </div>
               </div>
             ) : (
               <div className="space-y-4">
-                {existingUnits.map((unit) => (
+                {myLibraryUnits.map((unit) => (
                   <div
                     key={unit.docId}
                     className="border border-gray-200 rounded-lg p-4 hover:bg-gray-50 transition-colors"
@@ -431,32 +552,65 @@ const SimpleAdminPage: React.FC = () => {
                         <div className="flex items-center gap-3 mb-2">
                           <span className="text-sm font-medium text-gray-500">Unit {unit.order}</span>
                           <h3 className="text-lg font-semibold text-gray-900">{unit.title}</h3>
+                          <div className="flex gap-2">
+                            {unit.isPrivate ? (
+                              <span className="px-2 py-1 bg-red-100 text-red-800 text-xs rounded-full">
+                                🔒 Private
+                              </span>
+                            ) : (
+                              <span className="px-2 py-1 bg-green-100 text-green-800 text-xs rounded-full">
+                                🌍 Public
+                              </span>
+                            )}
+                            {unit.createdBy === currentUser?.uid && (
+                              <span className="px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded-full">
+                                📝 Created by me
+                              </span>
+                            )}
+                          </div>
                         </div>
                         <p className="text-gray-600 text-sm mb-3">{unit.description}</p>
                         <div className="flex items-center gap-4 text-xs text-gray-500">
                           <span>Video: YouTube</span>
                           <span>Activity: {unit.activityType.toUpperCase()}</span>
+                          {unit.originalCreator && (
+                            <span>Copied from global library</span>
+                          )}
                         </div>
                       </div>
-                      <div className="flex gap-2 ml-4">
-                        <button
-                          onClick={() => window.open(getYouTubeWatchUrl(unit.videoUrl), '_blank')}
-                          className="text-blue-600 hover:text-blue-800 text-sm underline"
-                        >
-                          Preview Video
-                        </button>
-                        <button
-                          onClick={() => handleEditUnit(unit)}
-                          className="text-green-600 hover:text-green-800 text-sm underline"
-                        >
-                          Edit
-                        </button>
-                        <button
-                          onClick={() => handleDeleteUnit(unit)}
-                          className="text-red-600 hover:text-red-800 text-sm underline"
-                        >
-                          Delete
-                        </button>
+                      <div className="flex flex-col gap-2 ml-4">
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => window.open(getYouTubeWatchUrl(unit.videoUrl), '_blank')}
+                            className="text-blue-600 hover:text-blue-800 text-sm underline"
+                          >
+                            Preview
+                          </button>
+                          {unit.createdBy === currentUser?.uid && (
+                            <button
+                              onClick={() => handleEditUnit(unit)}
+                              className="text-green-600 hover:text-green-800 text-sm underline"
+                            >
+                              Edit
+                            </button>
+                          )}
+                        </div>
+                        <div className="flex gap-2">
+                          {unit.createdBy === currentUser?.uid && (
+                            <button
+                              onClick={() => handleTogglePrivacy(unit)}
+                              className="text-purple-600 hover:text-purple-800 text-sm underline"
+                            >
+                              {unit.isPrivate ? 'Make Public' : 'Make Private'}
+                            </button>
+                          )}
+                          <button
+                            onClick={() => handleRemoveFromLibrary(unit)}
+                            className="text-red-600 hover:text-red-800 text-sm underline"
+                          >
+                            Remove
+                          </button>
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -632,17 +786,120 @@ const SimpleAdminPage: React.FC = () => {
           </div>
         )}
 
-        {activeTab === 'assign' && (
+        {activeTab === 'global-library' && (
           <div className="bg-white rounded-lg shadow-sm p-6">
-            <h2 className="text-2xl font-semibold text-gray-900 mb-6">Assign Units to Students</h2>
-            <div className="text-center py-8">
-              <div className="text-4xl mb-4">👨‍🏫</div>
-              <h3 className="text-lg font-medium text-gray-900 mb-2">Coming in Phase 3!</h3>
-              <p className="text-gray-600">
-                Student assignment features will be available in the next phase of development.
-                For now, all students can see all created units.
-              </p>
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="text-2xl font-semibold text-gray-900">Global Library</h2>
+              <div className="text-sm text-gray-600">
+                {globalLibraryUnits.length} public units available
+              </div>
             </div>
+
+            {/* Search and Filter */}
+            <div className="mb-6 space-y-4">
+              <div className="flex gap-4">
+                <div className="flex-1">
+                  <input
+                    type="text"
+                    placeholder="Search units..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  />
+                </div>
+                <select
+                  value={activityTypeFilter}
+                  onChange={(e) => setActivityTypeFilter(e.target.value as 'all' | 'h5p' | 'wordwall')}
+                  className="px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                >
+                  <option value="all">All Types</option>
+                  <option value="h5p">H5P Activities</option>
+                  <option value="wordwall">Wordwall Activities</option>
+                </select>
+              </div>
+            </div>
+
+            {unitsLoading ? (
+              <div className="text-center py-8">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-2"></div>
+                <p className="text-gray-600">Loading global library...</p>
+              </div>
+            ) : globalLibraryUnits.length === 0 ? (
+              <div className="text-center py-8">
+                <div className="text-4xl mb-4">🌍</div>
+                <h3 className="text-lg font-medium text-gray-900 mb-2">
+                  {searchTerm || activityTypeFilter !== 'all' ? 'No Matching Units' : 'No Public Units'}
+                </h3>
+                <p className="text-gray-600 mb-4">
+                  {searchTerm || activityTypeFilter !== 'all'
+                    ? 'Try adjusting your search or filters.'
+                    : 'Be the first to create and share a public unit!'}
+                </p>
+                {(searchTerm || activityTypeFilter !== 'all') && (
+                  <button
+                    onClick={() => {
+                      setSearchTerm('');
+                      setActivityTypeFilter('all');
+                    }}
+                    className="text-blue-600 hover:text-blue-800 underline"
+                  >
+                    Clear filters
+                  </button>
+                )}
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {globalLibraryUnits.map((unit) => (
+                  <div
+                    key={unit.docId}
+                    className="border border-gray-200 rounded-lg p-4 hover:bg-gray-50 transition-colors"
+                  >
+                    <div className="flex justify-between items-start">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-3 mb-2">
+                          <span className="text-sm font-medium text-gray-500">Unit {unit.order}</span>
+                          <h3 className="text-lg font-semibold text-gray-900">{unit.title}</h3>
+                          <div className="flex gap-2">
+                            <span className="px-2 py-1 bg-green-100 text-green-800 text-xs rounded-full">
+                              🌍 Public
+                            </span>
+                            {unit.createdBy === currentUser?.uid && (
+                              <span className="px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded-full">
+                                📝 Created by me
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                        <p className="text-gray-600 text-sm mb-3">{unit.description}</p>
+                        <div className="flex items-center gap-4 text-xs text-gray-500">
+                          <span>Video: YouTube</span>
+                          <span>Activity: {unit.activityType.toUpperCase()}</span>
+                          {unit.createdAt && (
+                            <span>Created: {new Date(unit.createdAt).toLocaleDateString()}</span>
+                          )}
+                        </div>
+                      </div>
+                      <div className="flex flex-col gap-2 ml-4">
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => window.open(getYouTubeWatchUrl(unit.videoUrl), '_blank')}
+                            className="text-blue-600 hover:text-blue-800 text-sm underline"
+                          >
+                            Preview
+                          </button>
+                          <button
+                            onClick={() => handleCopyToLibrary(unit)}
+                            className="bg-green-600 hover:bg-green-700 text-white px-3 py-1 rounded text-sm transition-colors"
+                          >
+                            Add to My Library
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         )}
       </div>

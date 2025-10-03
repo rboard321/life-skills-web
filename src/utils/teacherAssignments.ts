@@ -27,6 +27,11 @@ export interface Unit {
   isActive?: boolean;
   createdAt?: Date;
   updatedAt?: Date;
+  // Library system fields
+  isPrivate?: boolean;        // Private vs Public units
+  createdBy?: string;         // Teacher ID who created it
+  addedToLibrary?: Date;      // When added to teacher's library
+  originalCreator?: string;   // Original creator if copied from global
 }
 
 export class TeacherAssignmentManager {

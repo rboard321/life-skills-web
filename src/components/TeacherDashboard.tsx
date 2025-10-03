@@ -2,10 +2,11 @@ import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { TeacherAssignmentManager, type Unit } from '../utils/teacherAssignments';
+import { LibraryManager } from '../utils/libraryManager';
 
 const TeacherDashboard: React.FC = () => {
   const { currentUser, teacherCode, isTeacher } = useAuth();
-  const [allUnits, setAllUnits] = useState<Unit[]>([]);
+  const [libraryUnits, setLibraryUnits] = useState<Unit[]>([]);
   const [assignedUnitIds, setAssignedUnitIds] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -17,9 +18,9 @@ const TeacherDashboard: React.FC = () => {
       try {
         setLoading(true);
 
-        // Load all available units
-        const units = await TeacherAssignmentManager.getAllUnits();
-        setAllUnits(units);
+        // Load teacher's library units
+        const units = await LibraryManager.getTeacherLibrary(currentUser.uid);
+        setLibraryUnits(units);
 
         // Load current assignments
         const assignment = await TeacherAssignmentManager.getTeacherAssignment(teacherCode);
@@ -133,24 +134,27 @@ const TeacherDashboard: React.FC = () => {
           <div className="mb-6">
             <h2 className="text-xl font-semibold">Unit Assignments</h2>
             <p className="text-gray-600 mt-1">
-              Select which units to assign to your students. Assigned units: {assignedUnitIds.length}
+              Select which units from your library to assign to your students. Assigned units: {assignedUnitIds.length}
             </p>
           </div>
 
-          {allUnits.length === 0 ? (
+          {libraryUnits.length === 0 ? (
             <div className="text-center py-8">
               <div className="text-4xl mb-4">📚</div>
-              <p className="text-gray-600 mb-4">No units available</p>
+              <p className="text-gray-600 mb-4">Your library is empty</p>
+              <p className="text-gray-500 text-sm mb-4">
+                Create units or add them from the global library to get started.
+              </p>
               <Link
                 to="/admin"
                 className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
               >
-                Create Your First Unit
+                Go to Admin Panel
               </Link>
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {allUnits.map((unit) => {
+              {libraryUnits.map((unit) => {
                 const unitDocId = (unit as any).docId || String(unit.id);
                 const isAssigned = assignedUnitIds.includes(unitDocId);
                 return (
