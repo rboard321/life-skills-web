@@ -215,6 +215,7 @@ export class TeacherAssignmentManager {
         const unitData = doc.data();
         return {
           id: unitData.id || doc.id, // Use data.id if available, fallback to doc.id
+          docId: doc.id, // Always include the actual document ID
           ...unitData
         };
       }) as Unit[];

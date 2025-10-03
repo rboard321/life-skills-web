@@ -73,6 +73,27 @@ const StudentDashboard: React.FC = () => {
           <div className="text-sm text-gray-500">
             Questions? Ask your teacher for help.
           </div>
+
+          {/* Temporary fix - clear bad assignment data */}
+          <button
+            onClick={async () => {
+              const { doc, updateDoc } = await import('firebase/firestore');
+              const { db } = await import('../firebase');
+              try {
+                const assignmentRef = doc(db, 'teacher_assignments', 'UCR518');
+                await updateDoc(assignmentRef, {
+                  unitIds: [], // Clear the bad unit IDs
+                  updatedAt: new Date()
+                });
+                alert('Assignment cleared. Teacher can now reassign units properly.');
+              } catch (error) {
+                console.error('Error:', error);
+              }
+            }}
+            className="mt-4 px-4 py-2 bg-yellow-600 text-white rounded-md hover:bg-yellow-700"
+          >
+            Clear Bad Assignment Data (Fix)
+          </button>
         </div>
       </div>
     );
