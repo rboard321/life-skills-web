@@ -109,10 +109,10 @@ export class LibraryManager {
         if (unitDoc.exists()) {
           const unitData = unitDoc.data();
           units.push({
+            ...unitData,
             id: unitData.id || unitDoc.id,
-            docId: unitDoc.id, // Include the document ID for assignments
-            ...unitData
-          } as Unit);
+            docId: unitDoc.id // Include the document ID for assignments
+          } as unknown as Unit);
         }
       }
 
@@ -156,10 +156,10 @@ export class LibraryManager {
       let units = unitsSnapshot.docs.map(doc => {
         const unitData = doc.data();
         return {
+          ...unitData,
           id: unitData.id || doc.id,
-          docId: doc.id, // Include the document ID for assignments
-          ...unitData
-        } as Unit;
+          docId: doc.id // Include the document ID for assignments
+        } as unknown as Unit;
       }).filter(unit => {
         // Filter out private units and inactive units in code
         const isPublic = unit.isPrivate !== true;
@@ -248,10 +248,10 @@ export class LibraryManager {
       const units = unitsSnapshot.docs.map(doc => {
         const unitData = doc.data();
         return {
+          ...unitData,
           id: unitData.id || doc.id,
-          docId: doc.id, // Include the document ID for assignments
-          ...unitData
-        } as Unit;
+          docId: doc.id // Include the document ID for assignments
+        } as unknown as Unit;
       });
 
       return units;
