@@ -110,6 +110,7 @@ export class LibraryManager {
           const unitData = unitDoc.data();
           units.push({
             id: unitData.id || unitDoc.id,
+            docId: unitDoc.id, // Include the document ID for assignments
             ...unitData
           } as Unit);
         }
@@ -156,6 +157,7 @@ export class LibraryManager {
         const unitData = doc.data();
         return {
           id: unitData.id || doc.id,
+          docId: doc.id, // Include the document ID for assignments
           ...unitData
         } as Unit;
       }).filter(unit => {
@@ -247,6 +249,7 @@ export class LibraryManager {
         const unitData = doc.data();
         return {
           id: unitData.id || doc.id,
+          docId: doc.id, // Include the document ID for assignments
           ...unitData
         } as Unit;
       });

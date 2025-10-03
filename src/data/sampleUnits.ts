@@ -24,6 +24,7 @@ export type Unit = {
   createdBy?: string;         // Teacher ID who created it
   addedToLibrary?: Date;      // When added to teacher's library
   originalCreator?: string;   // Original creator if copied from global
+  docId?: string;            // Firestore document ID for assignments
 };
 
 // User progress tracking (legacy - use UserProgressData from firebase-optimized.ts for new implementation)
