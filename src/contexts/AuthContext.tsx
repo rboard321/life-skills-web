@@ -58,8 +58,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     displayName: string,
     userRole: string
   ): Promise<void> => {
+    console.log('🔍 Starting signup process for:', email, 'with role:', userRole);
     const userCredential = await createUserWithEmailAndPassword(auth, email, password);
     if (userCredential.user) {
+      console.log('🔍 User created successfully:', userCredential.user.uid);
       await updateProfile(userCredential.user, { displayName });
 
       const userData: any = {
@@ -73,11 +75,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       // If teacher, generate a teacher code and create assignment document
       if (userRole === 'teacher') {
+        console.log('🔍 Creating teacher account with teacher code...');
         // Generate teacher code directly instead of using assignTeacherCode
         const { generateUniqueTeacherCode } = await import('../utils/teacherCodeGenerator');
         const newTeacherCode = await generateUniqueTeacherCode();
         userData.teacherCode = newTeacherCode;
         setTeacherCode(newTeacherCode);
+        console.log('🔍 Generated teacher code:', newTeacherCode);
 
         // Create teacher assignment document
         const { TeacherAssignmentManager } = await import('../utils/teacherAssignments');
@@ -87,10 +91,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           displayName,
           userCredential.user.uid
         );
+        console.log('🔍 Created teacher assignment document');
       }
 
+      console.log('🔍 Creating user document with data:', userData);
       await setDoc(doc(db, 'users', userCredential.user.uid), userData);
       setRole(userRole);
+      console.log('🔍 Signup completed successfully');
     }
   };
 
@@ -124,14 +131,38 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
+      console.log('🔍 Auth state changed, user:', user?.email, user?.uid);
       setCurrentUser(user);
       if (user) {
         try {
-          const userDoc = await getDoc(doc(db, 'users', user.uid));
-          const data = userDoc.data();
-          setRole((data?.role as string) || null);
-          setTeacherCode((data?.teacherCode as string) || null);
-          setAssignedTeacherCode((data?.assignedTeacherCode as string) || null);
+          const userDocRef = doc(db, 'users', user.uid);
+          const userDoc = await getDoc(userDocRef);
+          console.log('🔍 User document exists:', userDoc.exists());
+
+          if (userDoc.exists()) {
+            const data = userDoc.data();
+            console.log('🔍 User document data:', data);
+            setRole((data?.role as string) || null);
+            setTeacherCode((data?.teacherCode as string) || null);
+            setAssignedTeacherCode((data?.assignedTeacherCode as string) || null);
+            console.log('🔍 Set role to:', data?.role);
+          } else {
+            console.log('🔍 User document does not exist, creating default student profile');
+            // If no user document exists, create a default student profile
+            const defaultUserData = {
+              uid: user.uid,
+              displayName: user.displayName || 'Student',
+              email: user.email,
+              role: 'student',
+              createdAt: new Date(),
+              lastActive: new Date()
+            };
+            await setDoc(userDocRef, defaultUserData);
+            setRole('student');
+            setTeacherCode(null);
+            setAssignedTeacherCode(null);
+            console.log('🔍 Created default student profile');
+          }
         } catch (err) {
           console.error('Failed to fetch user data:', err);
           setRole(null);

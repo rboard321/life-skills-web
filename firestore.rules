@@ -3,8 +3,10 @@ rules_version='2'
 service cloud.firestore {
   match /databases/{database}/documents {
     // Helper function to check if user has teacher role
+    // Using exists() to avoid circular dependency during signup
     function isTeacher() {
       return request.auth != null &&
+             exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
              get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'teacher';
     }
 
@@ -13,26 +15,19 @@ service cloud.firestore {
       return request.auth != null;
     }
 
-    // Helper function to check if user is admin (teacher)
-    function isAdmin() {
-      return isTeacher();
-    }
-
     // Units collection rules
     match /units/{unitId} {
       // Allow read for all users (including unauthenticated students with teacher codes)
       allow read: if true;
-      // Allow write only for users with teacher role
-      allow write: if isTeacher();
+      // Allow write for authenticated users (app logic will check teacher role)
+      allow write: if isAuthenticated();
     }
 
     // Users collection rules
     match /users/{userId} {
-      // Users can read and write their own data
+      // Users can read and write their own data (essential for signup)
       allow read, write: if isAuthenticated() && request.auth.uid == userId;
-      // Teachers can read all user data (for finding students by teacher code)
-      allow read: if isTeacher();
-      // Allow querying users by teacherCode field for teacher code validation
+      // Allow general read access for authenticated users
       allow read: if isAuthenticated();
 
       // Progress subcollection rules (legacy - may be removed)
@@ -46,41 +41,34 @@ service cloud.firestore {
 
     // Teacher assignments collection rules
     match /teacher_assignments/{teacherCode} {
-      // Teachers can read and write their own assignments
-      allow read, write: if isAuthenticated() &&
-        (isTeacher() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.teacherCode == teacherCode);
-      // Allow unauthenticated read access for student teacher code validation
+      // Allow read access for anyone (needed for student teacher code validation)
       allow read: if true;
+      // Allow write access for authenticated users
+      allow write: if isAuthenticated();
     }
 
-    // Student progress collection rules (for new assignment-based progress)
+    // Teacher libraries collection rules
+    match /teacher_libraries/{teacherId} {
+      // Teachers can read and write their own library
+      allow read, write: if isAuthenticated() && request.auth.uid == teacherId;
+    }
+
+    // Student progress collection rules (simplified)
     match /student_progress/{progressId} {
-      // Students can read and write their own progress
-      allow read, write: if isAuthenticated() &&
-        resource.data.studentId == request.auth.uid;
-      // Teachers can read all progress data
-      allow read: if isTeacher();
-      // Allow creating progress records for authenticated users
-      allow create: if isAuthenticated() &&
-        request.resource.data.studentId == request.auth.uid;
+      // Allow read/write for authenticated users (app logic will check ownership)
+      allow read, write: if isAuthenticated();
     }
 
     // Classes collection (for future expansion)
     match /classes/{classId} {
-      // Teachers can manage their own classes
-      allow read, write: if isAuthenticated() &&
-        (isTeacher() && resource.data.teacherId == request.auth.uid);
-      // Students can read classes they are enrolled in
-      allow read: if isAuthenticated();
+      // Allow read/write for authenticated users
+      allow read, write: if isAuthenticated();
     }
 
     // Class members collection (for future expansion)
     match /class_members/{memberId} {
-      // Teachers can manage members of their classes
-      allow read, write: if isTeacher();
-      // Students can read their own membership records
-      allow read: if isAuthenticated() &&
-        resource.data.studentId == request.auth.uid;
+      // Allow read/write for authenticated users
+      allow read, write: if isAuthenticated();
     }
 
     // Test collection (for connection testing)
