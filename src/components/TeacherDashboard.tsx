@@ -40,7 +40,7 @@ const TeacherDashboard: React.FC = () => {
 
     try {
       // Use document ID for assignment, not the internal id field
-      const unitDocId = unit.docId || unit.id;
+      const unitDocId = (unit as any).docId || String(unit.id);
       const isCurrentlyAssigned = assignedUnitIds.includes(unitDocId);
 
       if (isCurrentlyAssigned) {
@@ -151,7 +151,7 @@ const TeacherDashboard: React.FC = () => {
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {allUnits.map((unit) => {
-                const unitDocId = unit.docId || unit.id;
+                const unitDocId = (unit as any).docId || String(unit.id);
                 const isAssigned = assignedUnitIds.includes(unitDocId);
                 return (
                   <div
