@@ -64,6 +64,8 @@ const StudentDashboard: React.FC = () => {
           <p className="text-gray-600 mb-4">
             Your teacher hasn't assigned any units to you yet. Check back later!
           </p>
+
+
           <div className="text-sm text-gray-500">
             Questions? Ask your teacher for help.
           </div>

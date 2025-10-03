@@ -35,24 +35,25 @@ const TeacherDashboard: React.FC = () => {
     loadData();
   }, [isTeacher, teacherCode, currentUser]);
 
-  const toggleUnitAssignment = async (unitId: number | string) => {
+  const toggleUnitAssignment = async (unit: any) => {
     if (!teacherCode || !currentUser) return;
 
     try {
-      const unitIdString = String(unitId);
-      const isCurrentlyAssigned = assignedUnitIds.includes(unitIdString);
+      // Use document ID for assignment, not the internal id field
+      const unitDocId = unit.docId || unit.id;
+      const isCurrentlyAssigned = assignedUnitIds.includes(unitDocId);
 
       if (isCurrentlyAssigned) {
-        await TeacherAssignmentManager.removeUnitFromTeacher(teacherCode, unitIdString);
-        setAssignedUnitIds(prev => prev.filter(id => id !== unitIdString));
+        await TeacherAssignmentManager.removeUnitFromTeacher(teacherCode, unitDocId);
+        setAssignedUnitIds(prev => prev.filter(id => id !== unitDocId));
       } else {
         await TeacherAssignmentManager.addUnitToTeacher(
           teacherCode,
-          unitIdString,
+          unitDocId,
           currentUser.displayName || currentUser.email || 'Teacher',
           currentUser.uid
         );
-        setAssignedUnitIds(prev => [...prev, unitIdString]);
+        setAssignedUnitIds(prev => [...prev, unitDocId]);
       }
     } catch (err) {
       console.error('Error updating assignment:', err);
@@ -150,7 +151,8 @@ const TeacherDashboard: React.FC = () => {
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {allUnits.map((unit) => {
-                const isAssigned = assignedUnitIds.includes(String(unit.id));
+                const unitDocId = unit.docId || unit.id;
+                const isAssigned = assignedUnitIds.includes(unitDocId);
                 return (
                   <div
                     key={unit.id}
@@ -181,7 +183,7 @@ const TeacherDashboard: React.FC = () => {
 
                     <div className="flex gap-2">
                       <button
-                        onClick={() => toggleUnitAssignment(unit.id)}
+                        onClick={() => toggleUnitAssignment(unit)}
                         className={`flex-1 py-2 px-3 rounded-md font-medium transition-colors ${
                           isAssigned
                             ? 'bg-red-100 text-red-700 hover:bg-red-200'
