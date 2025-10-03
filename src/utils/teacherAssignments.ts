@@ -206,7 +206,7 @@ export class TeacherAssignmentManager {
   /**
    * Gets all available units from the community library
    */
-  static async getAllUnits(): Promise<Unit[]> {
+  static async getAllUnits(): Promise<any[]> {
     try {
       const unitsRef = collection(db, 'units');
       const unitsSnapshot = await getDocs(unitsRef);
@@ -218,7 +218,7 @@ export class TeacherAssignmentManager {
           docId: doc.id, // Always include the actual document ID
           ...unitData
         };
-      }) as Unit[];
+      }) as any[];
 
       // Filter active units and sort by order
       const activeUnits = units.filter(unit => unit.isActive !== false);
