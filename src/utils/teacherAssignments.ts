@@ -4,7 +4,9 @@ import {
   setDoc,
   getDoc,
   getDocs,
-  updateDoc
+  updateDoc,
+  query,
+  where
 } from 'firebase/firestore';
 import { db } from '../firebase';
 
@@ -88,22 +90,51 @@ export class TeacherAssignmentManager {
 
       console.log('🔍 Unit IDs assigned:', assignment.unitIds);
 
-      // Get all assigned units
+      // Get all assigned units by querying for units with matching internal id
       const units: Unit[] = [];
       for (const unitId of assignment.unitIds) {
-        console.log('🔍 Fetching unit with ID:', unitId);
-        const unitRef = doc(db, 'units', unitId);
-        const unitDoc = await getDoc(unitRef);
+        console.log('🔍 Querying for unit with internal ID:', unitId);
 
-        if (unitDoc.exists()) {
-          console.log('🔍 Unit found:', unitDoc.id, unitDoc.data());
+        // Query units collection for unit with matching internal id field
+        const unitsQuery = query(
+          collection(db, 'units'),
+          where('id', '==', parseInt(unitId)) // Convert to number since unit.id can be number
+        );
+
+        const querySnapshot = await getDocs(unitsQuery);
+
+        if (!querySnapshot.empty) {
+          // Should only be one matching unit
+          const unitDoc = querySnapshot.docs[0];
+          console.log('🔍 Unit found via query:', unitDoc.id, unitDoc.data());
           const unitData = unitDoc.data();
           units.push({
-            id: unitData.id || unitDoc.id, // Use data.id if available, fallback to doc.id
-            ...unitData
-          } as Unit);
+            ...unitData,
+            id: unitData.id || unitDoc.id,
+            docId: unitDoc.id // Include document ID for assignments
+          } as unknown as Unit);
         } else {
-          console.log('🔍 Unit NOT found for ID:', unitId);
+          console.log('🔍 Unit NOT found for internal ID:', unitId);
+
+          // Also try querying with string version in case it's stored as string
+          const stringQuery = query(
+            collection(db, 'units'),
+            where('id', '==', unitId)
+          );
+
+          const stringSnapshot = await getDocs(stringQuery);
+          if (!stringSnapshot.empty) {
+            const unitDoc = stringSnapshot.docs[0];
+            console.log('🔍 Unit found via string query:', unitDoc.id, unitDoc.data());
+            const unitData = unitDoc.data();
+            units.push({
+              ...unitData,
+              id: unitData.id || unitDoc.id,
+              docId: unitDoc.id // Include document ID for assignments
+            } as unknown as Unit);
+          } else {
+            console.log('🔍 Unit NOT found with either number or string ID:', unitId);
+          }
         }
       }
 
