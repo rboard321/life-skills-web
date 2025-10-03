@@ -64,33 +64,45 @@ export class TeacherAssignmentManager {
    */
   static async getAssignedUnits(teacherCode: string): Promise<Unit[]> {
     try {
+      console.log('🔍 getAssignedUnits called with teacher code:', teacherCode);
       const assignmentRef = doc(db, 'teacher_assignments', teacherCode);
       const assignmentDoc = await getDoc(assignmentRef);
 
       if (!assignmentDoc.exists()) {
+        console.log('🔍 Assignment document not found for teacher code:', teacherCode);
         return [];
       }
 
       const assignment = assignmentDoc.data() as TeacherAssignment;
+      console.log('🔍 Assignment data:', assignment);
 
       if (!assignment.unitIds || assignment.unitIds.length === 0) {
+        console.log('🔍 No unit IDs assigned to teacher code:', teacherCode);
         return [];
       }
+
+      console.log('🔍 Unit IDs assigned:', assignment.unitIds);
 
       // Get all assigned units
       const units: Unit[] = [];
       for (const unitId of assignment.unitIds) {
+        console.log('🔍 Fetching unit with ID:', unitId);
         const unitRef = doc(db, 'units', unitId);
         const unitDoc = await getDoc(unitRef);
 
         if (unitDoc.exists()) {
+          console.log('🔍 Unit found:', unitDoc.id, unitDoc.data());
           const unitData = unitDoc.data();
           units.push({
             id: unitData.id || unitDoc.id, // Use data.id if available, fallback to doc.id
             ...unitData
           } as Unit);
+        } else {
+          console.log('🔍 Unit NOT found for ID:', unitId);
         }
       }
+
+      console.log('🔍 Final units array:', units);
 
       // Sort by order if available, otherwise by title
       units.sort((a, b) => {
