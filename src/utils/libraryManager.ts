@@ -135,19 +135,18 @@ export class LibraryManager {
    */
   static async getGlobalLibrary(searchTerm?: string, activityType?: 'h5p' | 'wordwall'): Promise<Unit[]> {
     try {
-      let unitsQuery = query(
-        collection(db, 'units'),
-        where('isPrivate', '!=', true), // Get public units (including undefined isPrivate)
-        where('isActive', '!=', false),
-        orderBy('createdAt', 'desc')
-      );
+      // Build query with only one != filter, then filter in code
+      let unitsQuery;
 
       if (activityType) {
         unitsQuery = query(
           collection(db, 'units'),
-          where('isPrivate', '!=', true),
-          where('isActive', '!=', false),
           where('activityType', '==', activityType),
+          orderBy('createdAt', 'desc')
+        );
+      } else {
+        unitsQuery = query(
+          collection(db, 'units'),
           orderBy('createdAt', 'desc')
         );
       }
@@ -159,6 +158,11 @@ export class LibraryManager {
           id: unitData.id || doc.id,
           ...unitData
         } as Unit;
+      }).filter(unit => {
+        // Filter out private units and inactive units in code
+        const isPublic = unit.isPrivate !== true;
+        const isActive = unit.isActive !== false;
+        return isPublic && isActive;
       });
 
       // Filter by search term if provided

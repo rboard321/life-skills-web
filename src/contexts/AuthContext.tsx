@@ -58,46 +58,60 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     displayName: string,
     userRole: string
   ): Promise<void> => {
-    console.log('🔍 Starting signup process for:', email, 'with role:', userRole);
-    const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-    if (userCredential.user) {
-      console.log('🔍 User created successfully:', userCredential.user.uid);
-      await updateProfile(userCredential.user, { displayName });
+    try {
+      console.log('🔍 Starting signup process for:', email, 'with role:', userRole);
 
-      const userData: any = {
-        uid: userCredential.user.uid,
-        displayName,
-        email,
-        role: userRole,
-        createdAt: new Date(),
-        lastActive: new Date()
-      };
+      // Set flag to prevent race condition during signup
+      sessionStorage.setItem('signupInProgress', 'true');
 
-      // If teacher, generate a teacher code and create assignment document
-      if (userRole === 'teacher') {
-        console.log('🔍 Creating teacher account with teacher code...');
-        // Generate teacher code directly instead of using assignTeacherCode
-        const { generateUniqueTeacherCode } = await import('../utils/teacherCodeGenerator');
-        const newTeacherCode = await generateUniqueTeacherCode();
-        userData.teacherCode = newTeacherCode;
-        setTeacherCode(newTeacherCode);
-        console.log('🔍 Generated teacher code:', newTeacherCode);
+      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+      if (userCredential.user) {
+        console.log('🔍 User created successfully:', userCredential.user.uid);
+        await updateProfile(userCredential.user, { displayName });
 
-        // Create teacher assignment document
-        const { TeacherAssignmentManager } = await import('../utils/teacherAssignments');
-        await TeacherAssignmentManager.assignUnitsToTeacher(
-          newTeacherCode,
-          [], // Start with no units assigned
+        const userData: any = {
+          uid: userCredential.user.uid,
           displayName,
-          userCredential.user.uid
-        );
-        console.log('🔍 Created teacher assignment document');
-      }
+          email,
+          role: userRole,
+          createdAt: new Date(),
+          lastActive: new Date()
+        };
 
-      console.log('🔍 Creating user document with data:', userData);
-      await setDoc(doc(db, 'users', userCredential.user.uid), userData);
-      setRole(userRole);
-      console.log('🔍 Signup completed successfully');
+        // If teacher, generate a teacher code and create assignment document
+        if (userRole === 'teacher') {
+          console.log('🔍 Creating teacher account with teacher code...');
+          // Generate teacher code directly instead of using assignTeacherCode
+          const { generateUniqueTeacherCode } = await import('../utils/teacherCodeGenerator');
+          const newTeacherCode = await generateUniqueTeacherCode();
+          userData.teacherCode = newTeacherCode;
+          setTeacherCode(newTeacherCode);
+          console.log('🔍 Generated teacher code:', newTeacherCode);
+
+          // Create teacher assignment document
+          const { TeacherAssignmentManager } = await import('../utils/teacherAssignments');
+          await TeacherAssignmentManager.assignUnitsToTeacher(
+            newTeacherCode,
+            [], // Start with no units assigned
+            displayName,
+            userCredential.user.uid
+          );
+          console.log('🔍 Created teacher assignment document');
+        }
+
+        console.log('🔍 Creating user document with data:', userData);
+        await setDoc(doc(db, 'users', userCredential.user.uid), userData);
+        setRole(userRole);
+        console.log('🔍 Signup completed successfully');
+
+        // Clear signup flag
+        sessionStorage.removeItem('signupInProgress');
+      }
+    } catch (error) {
+      // Clear signup flag on error
+      sessionStorage.removeItem('signupInProgress');
+      console.error('🔍 Signup failed:', error);
+      throw error;
     }
   };
 
@@ -147,21 +161,26 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             setAssignedTeacherCode((data?.assignedTeacherCode as string) || null);
             console.log('🔍 Set role to:', data?.role);
           } else {
-            console.log('🔍 User document does not exist, creating default student profile');
-            // If no user document exists, create a default student profile
-            const defaultUserData = {
-              uid: user.uid,
-              displayName: user.displayName || 'Student',
-              email: user.email,
-              role: 'student',
-              createdAt: new Date(),
-              lastActive: new Date()
-            };
-            await setDoc(userDocRef, defaultUserData);
-            setRole('student');
-            setTeacherCode(null);
-            setAssignedTeacherCode(null);
-            console.log('🔍 Created default student profile');
+            console.log('🔍 User document does not exist - waiting for signup process to complete');
+            // Don't create a default profile during signup - let the signup process handle it
+            // Only create default student profile if this is not during signup
+            const isSignupInProgress = sessionStorage.getItem('signupInProgress') === 'true';
+            if (!isSignupInProgress) {
+              console.log('🔍 Creating default student profile for existing user');
+              const defaultUserData = {
+                uid: user.uid,
+                displayName: user.displayName || 'Student',
+                email: user.email,
+                role: 'student',
+                createdAt: new Date(),
+                lastActive: new Date()
+              };
+              await setDoc(userDocRef, defaultUserData);
+              setRole('student');
+              setTeacherCode(null);
+              setAssignedTeacherCode(null);
+              console.log('🔍 Created default student profile');
+            }
           }
         } catch (err) {
           console.error('Failed to fetch user data:', err);
