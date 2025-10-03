@@ -55,21 +55,23 @@ const TeacherDashboard: React.FC = () => {
     if (!teacherCode || !currentUser) return;
 
     try {
-      // Use document ID for assignment, not the internal id field
-      const unitDocId = (unit as any).docId || String(unit.id);
-      const isCurrentlyAssigned = assignedUnitIds.includes(unitDocId);
+      // Use the unit's internal id field for assignment (matching what StudentDashboard expects)
+      const unitId = String(unit.id);
+      const isCurrentlyAssigned = assignedUnitIds.includes(unitId);
+
+      console.log('🔍 TeacherDashboard - toggling assignment for unit:', unitId, 'currently assigned:', isCurrentlyAssigned);
 
       if (isCurrentlyAssigned) {
-        await TeacherAssignmentManager.removeUnitFromTeacher(teacherCode, unitDocId);
-        setAssignedUnitIds(prev => prev.filter(id => id !== unitDocId));
+        await TeacherAssignmentManager.removeUnitFromTeacher(teacherCode, unitId);
+        setAssignedUnitIds(prev => prev.filter(id => id !== unitId));
       } else {
         await TeacherAssignmentManager.addUnitToTeacher(
           teacherCode,
-          unitDocId,
+          unitId,
           currentUser.displayName || currentUser.email || 'Teacher',
           currentUser.uid
         );
-        setAssignedUnitIds(prev => [...prev, unitDocId]);
+        setAssignedUnitIds(prev => [...prev, unitId]);
       }
     } catch (err) {
       console.error('Error updating assignment:', err);
@@ -170,8 +172,8 @@ const TeacherDashboard: React.FC = () => {
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {libraryUnits.map((unit) => {
-                const unitDocId = (unit as any).docId || String(unit.id);
-                const isAssigned = assignedUnitIds.includes(unitDocId);
+                const unitId = String(unit.id);
+                const isAssigned = assignedUnitIds.includes(unitId);
                 return (
                   <div
                     key={unit.id}
