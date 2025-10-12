@@ -7,7 +7,10 @@ import {
   updateDoc,
   query,
   where,
-  orderBy
+  orderBy,
+  limit,
+  startAfter,
+  DocumentSnapshot
 } from 'firebase/firestore';
 import { db } from '../firebase';
 import type { Unit } from './teacherAssignments';
@@ -22,6 +25,12 @@ export interface GlobalLibrary {
   units: string[];
   featured?: string[];
   updatedAt: Date;
+}
+
+export interface PaginatedLibraryResult {
+  units: Unit[];
+  hasMore: boolean;
+  lastDocument?: DocumentSnapshot;
 }
 
 export class LibraryManager {
@@ -132,9 +141,22 @@ export class LibraryManager {
   }
 
   /**
-   * Get all public units available in the global library
+   * Get all public units available in the global library (legacy method - no pagination)
    */
   static async getGlobalLibrary(searchTerm?: string, activityType?: 'h5p' | 'wordwall'): Promise<Unit[]> {
+    const result = await this.getGlobalLibraryPaginated(searchTerm, activityType, 50);
+    return result.units;
+  }
+
+  /**
+   * Get paginated public units available in the global library
+   */
+  static async getGlobalLibraryPaginated(
+    searchTerm?: string,
+    activityType?: 'h5p' | 'wordwall',
+    pageSize: number = 20,
+    lastDoc?: DocumentSnapshot
+  ): Promise<PaginatedLibraryResult> {
     try {
       // Build query with only one != filter, then filter in code
       let unitsQuery;
@@ -143,13 +165,35 @@ export class LibraryManager {
         unitsQuery = query(
           collection(db, 'units'),
           where('activityType', '==', activityType),
-          orderBy('createdAt', 'desc')
+          orderBy('createdAt', 'desc'),
+          limit(pageSize + 1) // Get one extra to check if there are more
         );
       } else {
         unitsQuery = query(
           collection(db, 'units'),
-          orderBy('createdAt', 'desc')
+          orderBy('createdAt', 'desc'),
+          limit(pageSize + 1) // Get one extra to check if there are more
         );
+      }
+
+      // Add pagination cursor if provided
+      if (lastDoc) {
+        if (activityType) {
+          unitsQuery = query(
+            collection(db, 'units'),
+            where('activityType', '==', activityType),
+            orderBy('createdAt', 'desc'),
+            startAfter(lastDoc),
+            limit(pageSize + 1)
+          );
+        } else {
+          unitsQuery = query(
+            collection(db, 'units'),
+            orderBy('createdAt', 'desc'),
+            startAfter(lastDoc),
+            limit(pageSize + 1)
+          );
+        }
       }
 
       const unitsSnapshot = await getDocs(unitsQuery);
@@ -176,10 +220,25 @@ export class LibraryManager {
         );
       }
 
-      return units;
+      // Check if there are more results
+      const hasMore = units.length > pageSize;
+      if (hasMore) {
+        units = units.slice(0, pageSize); // Remove the extra item
+      }
+
+      const lastDocument = unitsSnapshot.docs.length > 0 ? unitsSnapshot.docs[Math.min(unitsSnapshot.docs.length - 1, pageSize - 1)] : undefined;
+
+      return {
+        units,
+        hasMore,
+        lastDocument
+      };
     } catch (error) {
       console.error('Error getting global library:', error);
-      return [];
+      return {
+        units: [],
+        hasMore: false
+      };
     }
   }
 

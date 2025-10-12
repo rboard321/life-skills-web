@@ -12,38 +12,30 @@ const TeacherDashboard: React.FC = () => {
   const [error, setError] = useState('');
 
   useEffect(() => {
-    console.log('🔍 TeacherDashboard useEffect - isTeacher:', isTeacher, 'teacherCode:', teacherCode, 'currentUser:', currentUser?.email);
-
     if (!isTeacher || !currentUser) {
-      console.log('🔍 TeacherDashboard - not teacher or no user, returning');
       return;
     }
 
     if (!teacherCode) {
-      console.log('🔍 TeacherDashboard - no teacher code yet, waiting...');
       setLoading(false); // Don't show loading forever if teacher code is missing
       return;
     }
 
     const loadData = async () => {
       try {
-        console.log('🔍 TeacherDashboard - loading data...');
         setLoading(true);
 
         // Load teacher's library units
         const units = await LibraryManager.getTeacherLibrary(currentUser.uid);
-        console.log('🔍 TeacherDashboard - loaded library units:', units.length);
         setLibraryUnits(units);
 
         // Load current assignments
         const assignment = await TeacherAssignmentManager.getTeacherAssignment(teacherCode);
-        console.log('🔍 TeacherDashboard - loaded assignment:', assignment);
         setAssignedUnitIds(assignment?.unitIds || []);
       } catch (err) {
         console.error('Error loading teacher data:', err);
         setError('Failed to load data');
       } finally {
-        console.log('🔍 TeacherDashboard - loading complete');
         setLoading(false);
       }
     };
@@ -59,7 +51,6 @@ const TeacherDashboard: React.FC = () => {
       const unitId = String(unit.id);
       const isCurrentlyAssigned = assignedUnitIds.includes(unitId);
 
-      console.log('🔍 TeacherDashboard - toggling assignment for unit:', unitId, 'currently assigned:', isCurrentlyAssigned);
 
       if (isCurrentlyAssigned) {
         await TeacherAssignmentManager.removeUnitFromTeacher(teacherCode, unitId);

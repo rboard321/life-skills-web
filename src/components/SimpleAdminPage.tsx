@@ -5,6 +5,7 @@ import type { Unit } from '../data/sampleUnits';
 import { optimizeYouTubeUrl, getYouTubeWatchUrl } from '../utils/youtube';
 import { useAuth } from '../contexts/AuthContext';
 import { LibraryManager } from '../utils/libraryManager';
+import type { DocumentSnapshot } from 'firebase/firestore';
 
 interface FirebaseUnit extends Unit {
   docId: string;
@@ -17,7 +18,14 @@ const SimpleAdminPage: React.FC = () => {
   const [myLibraryUnits, setMyLibraryUnits] = useState<FirebaseUnit[]>([]);
   const [globalLibraryUnits, setGlobalLibraryUnits] = useState<FirebaseUnit[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
+  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
   const [activityTypeFilter, setActivityTypeFilter] = useState<'all' | 'h5p' | 'wordwall'>('all');
+
+  // Pagination state
+  const [globalLibraryHasMore, setGlobalLibraryHasMore] = useState(false);
+  const [globalLibraryLastDoc, setGlobalLibraryLastDoc] = useState<DocumentSnapshot | undefined>();
+  const [globalLibraryLoading, setGlobalLibraryLoading] = useState(false);
+  const PAGE_SIZE = 20;
 
   // Unit creation state
   const [title, setTitle] = useState('');
@@ -48,11 +56,20 @@ const SimpleAdminPage: React.FC = () => {
     loadMyLibrary();
   }, [currentUser]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Debounce search term
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearchTerm(searchTerm);
+    }, 300);
+
+    return () => clearTimeout(timer);
+  }, [searchTerm]);
+
   useEffect(() => {
     if (activeTab === 'global-library') {
-      loadGlobalLibrary();
+      loadGlobalLibrary(true); // Reset pagination when search/filter changes
     }
-  }, [activeTab, searchTerm, activityTypeFilter]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [activeTab, debouncedSearchTerm, activityTypeFilter]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const loadMyLibrary = async () => {
     if (!currentUser?.uid) return;
@@ -69,19 +86,38 @@ const SimpleAdminPage: React.FC = () => {
     }
   };
 
-  const loadGlobalLibrary = async () => {
+  const loadGlobalLibrary = async (resetPagination = true) => {
     try {
-      const searchString = searchTerm.trim() || undefined;
+      setGlobalLibraryLoading(true);
+      const searchString = debouncedSearchTerm.trim() || undefined;
       const activityType = activityTypeFilter === 'all' ? undefined : activityTypeFilter;
 
-      const globalUnits = await LibraryManager.getGlobalLibrary(searchString, activityType);
-      const unitsWithDocId = globalUnits.map(unit => ({
+      const lastDoc = resetPagination ? undefined : globalLibraryLastDoc;
+
+      const result = await LibraryManager.getGlobalLibraryPaginated(
+        searchString,
+        activityType,
+        PAGE_SIZE,
+        lastDoc
+      );
+
+      const unitsWithDocId = result.units.map(unit => ({
         ...unit,
         docId: typeof unit.id === 'string' ? unit.id : String(unit.id)
       })) as FirebaseUnit[];
-      setGlobalLibraryUnits(unitsWithDocId);
+
+      if (resetPagination) {
+        setGlobalLibraryUnits(unitsWithDocId);
+      } else {
+        setGlobalLibraryUnits(prev => [...prev, ...unitsWithDocId]);
+      }
+
+      setGlobalLibraryHasMore(result.hasMore);
+      setGlobalLibraryLastDoc(result.lastDocument);
     } catch (error) {
       console.error('Error loading global library:', error);
+    } finally {
+      setGlobalLibraryLoading(false);
     }
   };
 
@@ -798,14 +834,19 @@ const SimpleAdminPage: React.FC = () => {
             {/* Search and Filter */}
             <div className="mb-6 space-y-4">
               <div className="flex gap-4">
-                <div className="flex-1">
+                <div className="flex-1 relative">
                   <input
                     type="text"
                     placeholder="Search units..."
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    className="w-full px-4 py-2 pr-10 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                   />
+                  {searchTerm !== debouncedSearchTerm && (
+                    <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
+                    </div>
+                  )}
                 </div>
                 <select
                   value={activityTypeFilter}
@@ -819,7 +860,7 @@ const SimpleAdminPage: React.FC = () => {
               </div>
             </div>
 
-            {unitsLoading ? (
+            {globalLibraryLoading && globalLibraryUnits.length === 0 ? (
               <div className="text-center py-8">
                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-2"></div>
                 <p className="text-gray-600">Loading global library...</p>
@@ -828,14 +869,14 @@ const SimpleAdminPage: React.FC = () => {
               <div className="text-center py-8">
                 <div className="text-4xl mb-4">🌍</div>
                 <h3 className="text-lg font-medium text-gray-900 mb-2">
-                  {searchTerm || activityTypeFilter !== 'all' ? 'No Matching Units' : 'No Public Units'}
+                  {debouncedSearchTerm || activityTypeFilter !== 'all' ? 'No Matching Units' : 'No Public Units'}
                 </h3>
                 <p className="text-gray-600 mb-4">
-                  {searchTerm || activityTypeFilter !== 'all'
+                  {debouncedSearchTerm || activityTypeFilter !== 'all'
                     ? 'Try adjusting your search or filters.'
                     : 'Be the first to create and share a public unit!'}
                 </p>
-                {(searchTerm || activityTypeFilter !== 'all') && (
+                {(debouncedSearchTerm || activityTypeFilter !== 'all') && (
                   <button
                     onClick={() => {
                       setSearchTerm('');
@@ -898,6 +939,29 @@ const SimpleAdminPage: React.FC = () => {
                     </div>
                   </div>
                 ))}
+
+                {/* Load More Button */}
+                {globalLibraryHasMore && (
+                  <div className="text-center pt-6">
+                    <button
+                      onClick={() => loadGlobalLibrary(false)}
+                      disabled={globalLibraryLoading}
+                      className="bg-blue-600 hover:bg-blue-700 disabled:bg-blue-300 text-white px-6 py-2 rounded-md transition-colors flex items-center gap-2 mx-auto"
+                    >
+                      {globalLibraryLoading ? (
+                        <>
+                          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                          Loading...
+                        </>
+                      ) : (
+                        <>
+                          Load More Units
+                          <span className="text-sm opacity-75">({PAGE_SIZE} more)</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+                )}
               </div>
             )}
           </div>
