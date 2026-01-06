@@ -143,8 +143,8 @@ export class LibraryManager {
   /**
    * Get all public units available in the global library (legacy method - no pagination)
    */
-  static async getGlobalLibrary(searchTerm?: string, activityType?: 'h5p' | 'wordwall'): Promise<Unit[]> {
-    const result = await this.getGlobalLibraryPaginated(searchTerm, activityType, 50);
+  static async getGlobalLibrary(searchTerm?: string): Promise<Unit[]> {
+    const result = await this.getGlobalLibraryPaginated(searchTerm, 50);
     return result.units;
   }
 
@@ -153,47 +153,25 @@ export class LibraryManager {
    */
   static async getGlobalLibraryPaginated(
     searchTerm?: string,
-    activityType?: 'h5p' | 'wordwall',
     pageSize: number = 20,
     lastDoc?: DocumentSnapshot
   ): Promise<PaginatedLibraryResult> {
     try {
       // Build query with only one != filter, then filter in code
-      let unitsQuery;
-
-      if (activityType) {
-        unitsQuery = query(
-          collection(db, 'units'),
-          where('activityType', '==', activityType),
-          orderBy('createdAt', 'desc'),
-          limit(pageSize + 1) // Get one extra to check if there are more
-        );
-      } else {
-        unitsQuery = query(
-          collection(db, 'units'),
-          orderBy('createdAt', 'desc'),
-          limit(pageSize + 1) // Get one extra to check if there are more
-        );
-      }
+      let unitsQuery = query(
+        collection(db, 'units'),
+        orderBy('createdAt', 'desc'),
+        limit(pageSize + 1) // Get one extra to check if there are more
+      );
 
       // Add pagination cursor if provided
       if (lastDoc) {
-        if (activityType) {
-          unitsQuery = query(
-            collection(db, 'units'),
-            where('activityType', '==', activityType),
-            orderBy('createdAt', 'desc'),
-            startAfter(lastDoc),
-            limit(pageSize + 1)
-          );
-        } else {
-          unitsQuery = query(
-            collection(db, 'units'),
-            orderBy('createdAt', 'desc'),
-            startAfter(lastDoc),
-            limit(pageSize + 1)
-          );
-        }
+        unitsQuery = query(
+          collection(db, 'units'),
+          orderBy('createdAt', 'desc'),
+          startAfter(lastDoc),
+          limit(pageSize + 1)
+        );
       }
 
       const unitsSnapshot = await getDocs(unitsQuery);

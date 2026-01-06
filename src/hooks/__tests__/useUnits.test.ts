@@ -3,31 +3,37 @@ import { renderHook, waitFor } from '@testing-library/react'
 import { useUnits } from '../useUnits'
 import { sampleUnits } from '../../data/sampleUnits'
 
-// Mock Firebase
 vi.mock('../../firebase', () => ({
   db: {},
 }))
 
-// Mock Auth Context
-const mockCurrentUser = { uid: 'test-user' }
-const mockRole = 'student'
-
-vi.mock('../../contexts/AuthContext', () => ({
-  useAuth: () => ({
-    currentUser: mockCurrentUser,
-    role: mockRole,
-  }),
-}))
-
-// Mock Firestore functions
 const mockGetDocs = vi.fn()
-const mockGetDoc = vi.fn()
 
 vi.mock('firebase/firestore', () => ({
   collection: vi.fn(),
   getDocs: () => mockGetDocs(),
-  doc: vi.fn(),
-  getDoc: () => mockGetDoc(),
+}))
+
+const mockGetAssignedUnits = vi.fn()
+
+vi.mock('../../utils/teacherAssignments', () => ({
+  TeacherAssignmentManager: {
+    getAssignedUnits: () => mockGetAssignedUnits(),
+    getAllUnits: vi.fn()
+  }
+}))
+
+vi.mock('../../contexts/AuthContext', () => ({
+  useAuth: () => ({
+    currentUser: { uid: 'test-user' },
+    role: 'student'
+  })
+}))
+
+vi.mock('../../contexts/StudentAuthContext', () => ({
+  useStudentAuth: () => ({
+    teacherId: 'teacher-1'
+  })
 }))
 
 describe('useUnits Hook', () => {
@@ -36,7 +42,6 @@ describe('useUnits Hook', () => {
   })
 
   it('should return sample units when Firebase is empty', async () => {
-    // Mock empty Firebase collection
     mockGetDocs.mockResolvedValue({
       empty: true,
       docs: []
@@ -50,7 +55,6 @@ describe('useUnits Hook', () => {
 
     expect(result.current.units).toEqual(sampleUnits)
     expect(result.current.error).toBe(null)
-    expect(result.current.userProgress).toEqual([])
   })
 
   it('should return Firebase units when available', async () => {
@@ -60,8 +64,7 @@ describe('useUnits Hook', () => {
         title: 'Firebase Unit',
         description: 'Unit from Firebase',
         videoUrl: 'https://youtube.com/embed/test',
-        activityUrl: 'https://h5p.org/test',
-        activityType: 'h5p',
+        activityType: 'drag-drop',
         order: 1
       }
     ]
@@ -84,22 +87,12 @@ describe('useUnits Hook', () => {
   })
 
   it('should filter units for assigned students', async () => {
-    const assignedUnits = [1, 3]
-    const expectedUnits = sampleUnits.filter(unit => assignedUnits.includes(unit.id))
-
-    // Mock empty Firebase collection (use sample data)
+    const assignedUnits = sampleUnits.slice(0, 2)
     mockGetDocs.mockResolvedValue({
       empty: true,
       docs: []
     })
-
-    // Mock user document with assignments
-    mockGetDoc.mockResolvedValue({
-      data: () => ({
-        assignedUnits,
-        completedUnits: []
-      })
-    })
+    mockGetAssignedUnits.mockResolvedValue(assignedUnits)
 
     const { result } = renderHook(() => useUnits(true))
 
@@ -107,35 +100,7 @@ describe('useUnits Hook', () => {
       expect(result.current.loading).toBe(false)
     })
 
-    expect(result.current.units).toEqual(expectedUnits)
-    expect(result.current.units).toHaveLength(2)
-    expect(result.current.units.map(u => u.id)).toEqual([1, 3])
-  })
-
-  it('should load user progress for students', async () => {
-    const userProgress = [
-      { unitId: 1, completedVideo: true, completedActivity: false }
-    ]
-
-    mockGetDocs.mockResolvedValue({
-      empty: true,
-      docs: []
-    })
-
-    mockGetDoc.mockResolvedValue({
-      data: () => ({
-        assignedUnits: [1, 2],
-        completedUnits: userProgress
-      })
-    })
-
-    const { result } = renderHook(() => useUnits(true))
-
-    await waitFor(() => {
-      expect(result.current.loading).toBe(false)
-    })
-
-    expect(result.current.userProgress).toEqual(userProgress)
+    expect(result.current.units).toEqual(assignedUnits)
   })
 
   it('should handle Firebase errors gracefully', async () => {
@@ -167,8 +132,7 @@ describe('useUnits Hook', () => {
           ...unit,
           description: '',
           videoUrl: '',
-          activityUrl: '',
-          activityType: 'h5p'
+          activityType: 'drag-drop'
         })
       }))
     })

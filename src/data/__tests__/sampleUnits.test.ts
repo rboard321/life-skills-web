@@ -10,8 +10,8 @@ describe('Data Models', () => {
         expect(unit).toHaveProperty('title')
         expect(unit).toHaveProperty('description')
         expect(unit).toHaveProperty('videoUrl')
-        expect(unit).toHaveProperty('activityUrl')
         expect(unit).toHaveProperty('activityType')
+        expect(unit).toHaveProperty('activityData')
         expect(unit).toHaveProperty('order')
 
         // Validate types
@@ -19,9 +19,9 @@ describe('Data Models', () => {
         expect(typeof unit.title).toBe('string')
         expect(typeof unit.description).toBe('string')
         expect(typeof unit.videoUrl).toBe('string')
-        expect(typeof unit.activityUrl).toBe('string')
-        expect(['h5p', 'wordwall']).toContain(unit.activityType)
+        expect(['drag-drop']).toContain(unit.activityType)
         expect(typeof unit.order).toBe('number')
+        expect(unit.activityData).toBeTruthy()
       })
     })
 
@@ -43,13 +43,11 @@ describe('Data Models', () => {
       })
     })
 
-    it('should have valid activity URLs', () => {
+    it('should have valid drag-and-drop activities', () => {
       sampleUnits.forEach(unit => {
-        if (unit.activityType === 'h5p') {
-          expect(unit.activityUrl).toMatch(/h5p\.org/)
-        } else if (unit.activityType === 'wordwall') {
-          expect(unit.activityUrl).toMatch(/wordwall\.net/)
-        }
+        expect(unit.activityType).toBe('drag-drop')
+        expect(unit.activityData?.prompt).toBeTruthy()
+        expect(unit.activityData?.pairs?.length).toBeGreaterThanOrEqual(2)
       })
     })
   })
@@ -58,25 +56,24 @@ describe('Data Models', () => {
     it('should create valid user progress object', () => {
       const progress: UserProgress = {
         unitId: 1,
-        completedVideo: true,
-        completedActivity: false,
+        activityScorePercent: 80,
+        activityAttempts: 2,
         completedAt: new Date()
       }
 
       expect(progress.unitId).toBe(1)
-      expect(progress.completedVideo).toBe(true)
-      expect(progress.completedActivity).toBe(false)
+      expect(progress.activityScorePercent).toBe(80)
+      expect(progress.activityAttempts).toBe(2)
       expect(progress.completedAt).toBeInstanceOf(Date)
     })
 
-    it('should allow optional completedAt field', () => {
+    it('should allow optional progress fields', () => {
       const progress: UserProgress = {
-        unitId: 1,
-        completedVideo: false,
-        completedActivity: false
+        unitId: 1
       }
 
       expect(progress.completedAt).toBeUndefined()
+      expect(progress.activityScorePercent).toBeUndefined()
     })
   })
 

@@ -75,25 +75,10 @@ const KidLogin: React.FC = () => {
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-400 via-purple-500 to-pink-500 flex items-center justify-center p-4">
       <div className="max-w-2xl w-full">
-        {/* Header */}
-        <div className="text-center mb-12">
-          <div className="text-8xl mb-6">🎓</div>
-          <h1 className="text-5xl md:text-6xl font-bold text-white mb-4">
-            Student Login
-          </h1>
-          <p className="text-2xl md:text-3xl text-white opacity-90">
-            Enter your code to start learning!
-          </p>
-        </div>
-
         {/* Login Card */}
         <div className="bg-white rounded-3xl shadow-2xl p-8 md:p-12">
           <form onSubmit={handleSubmit}>
             <div className="mb-8">
-              <label htmlFor="kidCode" className="block text-3xl font-bold text-gray-800 mb-6 text-center">
-                Your Code
-              </label>
-
               {/* Code Input - 6 Character Boxes */}
               <div className="flex justify-center gap-3 mb-6">
                 {[0, 1, 2, 3, 4, 5].map((index) => (
@@ -126,6 +111,16 @@ const KidLogin: React.FC = () => {
 
               <p className="text-center text-gray-500 mt-4 text-lg">
                 {kidCode.length}/6 characters
+              </p>
+            </div>
+
+            <div className="text-center mb-6">
+              <div className="text-5xl mb-3">🎓</div>
+              <h1 className="text-3xl md:text-4xl font-bold text-gray-900">
+                Enter Your Student Code
+              </h1>
+              <p className="text-lg text-gray-500 mt-2">
+                Start your lesson in seconds
               </p>
             </div>
 

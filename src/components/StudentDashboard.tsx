@@ -1,40 +1,36 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { useAuth } from '../contexts/AuthContext';
+import { useStudentAuth } from '../contexts/StudentAuthContext';
 import { TeacherAssignmentManager, type Unit as FirebaseUnit } from '../utils/teacherAssignments';
 
-// Helper function to convert Firebase units to legacy format
-const convertFirebaseUnit = (firebaseUnit: FirebaseUnit): any => ({
+const convertFirebaseUnit = (firebaseUnit: FirebaseUnit): any => {
+  const parsedId = typeof firebaseUnit.id === 'string' ? Number.parseInt(firebaseUnit.id, 10) : firebaseUnit.id;
+  const normalizedId = typeof firebaseUnit.id === 'string' && Number.isNaN(parsedId)
+    ? firebaseUnit.id
+    : parsedId;
+
+  return {
     ...firebaseUnit,
-    id: typeof firebaseUnit.id === 'string' ? parseInt(firebaseUnit.id, 10) || 0 : firebaseUnit.id,
+    id: normalizedId,
     order: firebaseUnit.order || 1
-});
+  };
+};
 
 const StudentDashboard: React.FC = () => {
-  const { currentUser } = useAuth();
+  const { teacherId, displayName } = useStudentAuth();
   const [units, setUnits] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-
-  // Check if this is a session-based student
-  const isStudentSession = sessionStorage.getItem('isStudent') === 'true';
-  const studentTeacherCode = sessionStorage.getItem('studentTeacherCode');
 
   useEffect(() => {
     const loadUnits = async () => {
       try {
         setLoading(true);
 
-        if (isStudentSession && studentTeacherCode) {
-          // Load units for session-based student
-          console.log('🔍 Loading units for teacher code:', studentTeacherCode);
-          const assignedUnits = await TeacherAssignmentManager.getAssignedUnits(studentTeacherCode);
-          console.log('🔍 Raw assigned units from Firestore:', assignedUnits);
+        if (teacherId) {
+          const assignedUnits = await TeacherAssignmentManager.getAssignedUnits(teacherId);
           const convertedUnits = assignedUnits.map(convertFirebaseUnit);
-          console.log('🔍 Converted units:', convertedUnits);
           setUnits(convertedUnits);
-        } else if (currentUser) {
-          // Load units for authenticated student (legacy behavior)
-          // This would require updating useUnits to be callable, but for now let's keep it simple
+        } else {
           setUnits([]);
         }
       } catch (error) {
@@ -46,7 +42,7 @@ const StudentDashboard: React.FC = () => {
     };
 
     loadUnits();
-  }, [isStudentSession, studentTeacherCode, currentUser]);
+  }, [teacherId]);
 
   if (loading) {
     return (
@@ -68,8 +64,6 @@ const StudentDashboard: React.FC = () => {
           <p className="text-gray-600 mb-4">
             Your teacher hasn't assigned any units to you yet. Check back later!
           </p>
-
-
           <div className="text-sm text-gray-500">
             Questions? Ask your teacher for help.
           </div>
@@ -80,19 +74,15 @@ const StudentDashboard: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Header */}
       <div className="bg-white shadow-sm border-b">
         <div className="max-w-4xl mx-auto px-4 py-6">
           <div className="flex justify-between items-center">
             <div>
               <h1 className="text-3xl font-bold text-gray-900">
-                Hi, Student! 👋
+                {displayName ? `Hi, ${displayName}! 👋` : 'Hi, Student! 👋'}
               </h1>
               <p className="text-gray-600 mt-1">
-                {isStudentSession && studentTeacherCode
-                  ? `Using teacher code: ${studentTeacherCode}`
-                  : 'Complete your assigned life skills units'
-                }
+                Complete your assigned life skills units
               </p>
             </div>
             <div className="text-right">
@@ -105,7 +95,6 @@ const StudentDashboard: React.FC = () => {
         </div>
       </div>
 
-      {/* Units Grid */}
       <div className="max-w-4xl mx-auto px-4 py-8">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           {units.map((unit) => (
@@ -115,7 +104,6 @@ const StudentDashboard: React.FC = () => {
               className="block bg-white rounded-xl shadow-md hover:shadow-lg transition-all duration-200 overflow-hidden group"
             >
               <div className="p-6">
-                {/* Unit Header */}
                 <div className="flex justify-between items-start mb-4">
                   <div className="flex items-center gap-2">
                     <span className="text-sm font-medium text-gray-500">
@@ -127,7 +115,6 @@ const StudentDashboard: React.FC = () => {
                   </div>
                 </div>
 
-                {/* Unit Content */}
                 <h3 className="text-xl font-semibold text-gray-900 mb-2 group-hover:text-blue-600 transition-colors">
                   {unit.title}
                 </h3>
@@ -135,7 +122,6 @@ const StudentDashboard: React.FC = () => {
                   {unit.description}
                 </p>
 
-                {/* Learning Steps */}
                 <div className="space-y-2">
                   <div className="flex items-center gap-3">
                     <div className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold bg-blue-100 text-blue-600">
@@ -155,7 +141,6 @@ const StudentDashboard: React.FC = () => {
                   </div>
                 </div>
 
-                {/* Action Hint */}
                 <div className="mt-4 pt-4 border-t border-gray-100">
                   <div className="flex items-center justify-between">
                     <span className="text-sm text-gray-500">
@@ -173,7 +158,6 @@ const StudentDashboard: React.FC = () => {
           ))}
         </div>
 
-        {/* Encouragement Message */}
         {units.length > 0 && (
           <div className="mt-8 text-center bg-blue-50 p-6 rounded-lg">
             <div className="text-2xl mb-2">📚</div>

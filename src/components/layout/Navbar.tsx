@@ -1,22 +1,25 @@
 import React from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
+import { useStudentAuth } from '../../contexts/StudentAuthContext';
 
 const Navbar: React.FC = () => {
   const { currentUser, logout, isTeacher } = useAuth();
+  const {
+    isAuthenticated: isStudentAuthenticated,
+    displayName: studentName,
+    kidCode,
+    logout: studentLogout
+  } = useStudentAuth();
   const navigate = useNavigate();
 
-  // Check if this is a student session
-  const isStudentSession = sessionStorage.getItem('isStudent') === 'true';
-  const studentTeacherCode = sessionStorage.getItem('studentTeacherCode');
+  const isStudentSession = isStudentAuthenticated && !currentUser;
 
   const handleLogout = async () => {
     try {
       if (isStudentSession) {
-        // Clear student session storage
-        sessionStorage.removeItem('isStudent');
-        sessionStorage.removeItem('studentTeacherCode');
-        navigate('/login');
+        await studentLogout();
+        navigate('/kid-login');
       } else {
         await logout();
         navigate('/login');
@@ -37,12 +40,12 @@ const Navbar: React.FC = () => {
           </div>
 
           <div className="flex items-center space-x-4">
-            {currentUser || (isStudentSession && studentTeacherCode) ? (
+            {currentUser || isStudentSession ? (
               <>
                 <span className="text-gray-700">
                   {currentUser
                     ? `Hi, ${currentUser.displayName || currentUser.email}`
-                    : `Student (Code: ${studentTeacherCode})`
+                    : `Hi, ${studentName || 'Student'}${kidCode ? ` (${kidCode})` : ''}`
                   }
                 </span>
                 {isTeacher && (

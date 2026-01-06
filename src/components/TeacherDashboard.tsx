@@ -3,21 +3,20 @@ import { Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { TeacherAssignmentManager, type Unit } from '../utils/teacherAssignments';
 import { LibraryManager } from '../utils/libraryManager';
+import { StudentManager } from '../utils/studentManager';
+import { ProgressTracker, type ClassStatistics } from '../utils/progressTracker';
 
 const TeacherDashboard: React.FC = () => {
-  const { currentUser, teacherCode, isTeacher } = useAuth();
+  const { currentUser, isTeacher } = useAuth();
   const [libraryUnits, setLibraryUnits] = useState<Unit[]>([]);
   const [assignedUnitIds, setAssignedUnitIds] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [studentCount, setStudentCount] = useState(0);
+  const [classStats, setClassStats] = useState<ClassStatistics | null>(null);
 
   useEffect(() => {
     if (!isTeacher || !currentUser) {
-      return;
-    }
-
-    if (!teacherCode) {
-      setLoading(false); // Don't show loading forever if teacher code is missing
       return;
     }
 
@@ -25,13 +24,17 @@ const TeacherDashboard: React.FC = () => {
       try {
         setLoading(true);
 
-        // Load teacher's library units
         const units = await LibraryManager.getTeacherLibrary(currentUser.uid);
         setLibraryUnits(units);
 
-        // Load current assignments
-        const assignment = await TeacherAssignmentManager.getTeacherAssignment(teacherCode);
+        const assignment = await TeacherAssignmentManager.getTeacherAssignment(currentUser.uid);
         setAssignedUnitIds(assignment?.unitIds || []);
+
+        const students = await StudentManager.getTeacherStudents(currentUser.uid, false);
+        setStudentCount(students.length);
+
+        const stats = await ProgressTracker.getClassStatistics(currentUser.uid);
+        setClassStats(stats);
       } catch (err) {
         console.error('Error loading teacher data:', err);
         setError('Failed to load data');
@@ -41,26 +44,23 @@ const TeacherDashboard: React.FC = () => {
     };
 
     loadData();
-  }, [isTeacher, teacherCode, currentUser]);
+  }, [isTeacher, currentUser]);
 
   const toggleUnitAssignment = async (unit: any) => {
-    if (!teacherCode || !currentUser) return;
+    if (!currentUser) return;
 
     try {
-      // Use the unit's internal id field for assignment (matching what StudentDashboard expects)
       const unitId = String(unit.id);
       const isCurrentlyAssigned = assignedUnitIds.includes(unitId);
 
-
       if (isCurrentlyAssigned) {
-        await TeacherAssignmentManager.removeUnitFromTeacher(teacherCode, unitId);
+        await TeacherAssignmentManager.removeUnitFromTeacher(currentUser.uid, unitId);
         setAssignedUnitIds(prev => prev.filter(id => id !== unitId));
       } else {
         await TeacherAssignmentManager.addUnitToTeacher(
-          teacherCode,
+          currentUser.uid,
           unitId,
-          currentUser.displayName || currentUser.email || 'Teacher',
-          currentUser.uid
+          currentUser.displayName || currentUser.email || 'Teacher'
         );
         setAssignedUnitIds(prev => [...prev, unitId]);
       }
@@ -94,24 +94,57 @@ const TeacherDashboard: React.FC = () => {
   return (
     <div className="min-h-screen bg-gray-50 py-8 px-4">
       <div className="max-w-6xl mx-auto">
-        {/* Header with Teacher Code */}
         <div className="bg-white rounded-lg shadow-md p-6 mb-8">
           <div className="flex flex-col md:flex-row md:items-center md:justify-between">
             <div>
               <h1 className="text-3xl font-bold text-gray-900 mb-2">Teacher Dashboard</h1>
               <p className="text-gray-600">Manage your unit assignments</p>
             </div>
-            <div className="mt-4 md:mt-0">
-              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                <p className="text-sm text-blue-600 font-medium mb-1">Your Teacher Code</p>
-                <p className="text-2xl font-bold text-blue-800 font-mono">{teacherCode || 'Loading...'}</p>
-                <p className="text-xs text-blue-600 mt-1">Share this code with your students</p>
-              </div>
-            </div>
           </div>
         </div>
 
-        {/* Quick Actions */}
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+          <div className="bg-white rounded-lg shadow-md p-6">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-gray-600 text-sm">Total Students</span>
+              <span className="text-2xl">👥</span>
+            </div>
+            <div className="text-3xl font-bold text-blue-600">{studentCount}</div>
+            <Link to="/admin?tab=students" className="text-sm text-blue-600 hover:underline mt-2 block">
+              Manage Students →
+            </Link>
+          </div>
+
+          <div className="bg-white rounded-lg shadow-md p-6">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-gray-600 text-sm">Active This Week</span>
+              <span className="text-2xl">⚡</span>
+            </div>
+            <div className="text-3xl font-bold text-green-600">{classStats?.activeStudents || 0}</div>
+            <p className="text-sm text-gray-500 mt-2">Students logged in</p>
+          </div>
+
+          <div className="bg-white rounded-lg shadow-md p-6">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-gray-600 text-sm">Avg Completion</span>
+              <span className="text-2xl">📊</span>
+            </div>
+            <div className="text-3xl font-bold text-purple-600">{classStats?.averageCompletion || 0}%</div>
+            <Link to="/admin/progress" className="text-sm text-purple-600 hover:underline mt-2 block">
+              View Progress →
+            </Link>
+          </div>
+
+          <div className="bg-white rounded-lg shadow-md p-6">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-gray-600 text-sm">Units Completed</span>
+              <span className="text-2xl">✅</span>
+            </div>
+            <div className="text-3xl font-bold text-orange-600">{classStats?.unitsCompleted || 0}</div>
+            <p className="text-sm text-gray-500 mt-2">Across all students</p>
+          </div>
+        </div>
+
         <div className="bg-white rounded-lg shadow-md p-6 mb-8">
           <h2 className="text-xl font-semibold mb-4">Quick Actions</h2>
           <div className="flex flex-wrap gap-4">
@@ -119,25 +152,23 @@ const TeacherDashboard: React.FC = () => {
               to="/admin"
               className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg font-medium transition-colors flex items-center"
             >
-              📝 Create New Unit
+              📝 Manage Content
             </Link>
-            <button
-              onClick={() => navigator.clipboard.writeText(teacherCode || '')}
-              className="bg-gray-600 hover:bg-gray-700 text-white px-6 py-3 rounded-lg font-medium transition-colors flex items-center"
+            <Link
+              to="/admin/progress"
+              className="bg-purple-600 hover:bg-purple-700 text-white px-6 py-3 rounded-lg font-medium transition-colors flex items-center"
             >
-              📋 Copy Teacher Code
-            </button>
+              📊 View Progress
+            </Link>
           </div>
         </div>
 
-        {/* Error Display */}
         {error && (
           <div className="bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-md mb-6">
             {error}
           </div>
         )}
 
-        {/* Unit Assignment */}
         <div className="bg-white rounded-lg shadow-md p-6">
           <div className="mb-6">
             <h2 className="text-xl font-semibold">Unit Assignments</h2>
@@ -161,56 +192,42 @@ const TeacherDashboard: React.FC = () => {
               </Link>
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <div className="space-y-4">
               {libraryUnits.map((unit) => {
                 const unitId = String(unit.id);
                 const isAssigned = assignedUnitIds.includes(unitId);
+
                 return (
                   <div
-                    key={unit.id}
-                    className={`border rounded-lg p-6 transition-all ${
-                      isAssigned
-                        ? 'border-blue-300 bg-blue-50'
-                        : 'border-gray-200 bg-white hover:shadow-md'
-                    }`}
+                    key={unitId}
+                    className="border border-gray-200 rounded-lg p-4 hover:bg-gray-50 transition-colors"
                   >
-                    <div className="flex items-start justify-between mb-3">
-                      <h3 className="text-lg font-semibold text-gray-900 flex-1">
-                        {unit.title}
-                      </h3>
-                      <div
-                        className={`ml-2 w-6 h-6 rounded-full flex items-center justify-center text-white text-sm ${
-                          isAssigned ? 'bg-blue-600' : 'bg-gray-300'
-                        }`}
-                      >
-                        {isAssigned ? '✓' : ''}
+                    <div className="flex justify-between items-start">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-3 mb-2">
+                          <span className="text-sm font-medium text-gray-500">Unit {unit.order}</span>
+                          <h3 className="text-lg font-semibold text-gray-900">{unit.title}</h3>
+                        </div>
+                        <p className="text-gray-600 text-sm mb-3">{unit.description}</p>
                       </div>
-                    </div>
-
-                    {unit.description && (
-                      <p className="text-gray-600 text-sm mb-4 line-clamp-2">
-                        {unit.description}
-                      </p>
-                    )}
-
-                    <div className="flex gap-2">
-                      <button
-                        onClick={() => toggleUnitAssignment(unit)}
-                        className={`flex-1 py-2 px-3 rounded-md font-medium transition-colors ${
-                          isAssigned
-                            ? 'bg-red-100 text-red-700 hover:bg-red-200'
-                            : 'bg-blue-100 text-blue-700 hover:bg-blue-200'
-                        }`}
-                      >
-                        {isAssigned ? 'Remove' : 'Assign'}
-                      </button>
-                      <Link
-                        to={`/unit/${unit.id}/learn`}
-                        className="px-3 py-2 bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 transition-colors"
-                        title="Preview unit"
-                      >
-                        👁️
-                      </Link>
+                      <div className="flex flex-col gap-2 ml-4">
+                        <button
+                          onClick={() => toggleUnitAssignment(unit)}
+                          className={`px-4 py-2 rounded-md text-sm font-medium ${
+                            isAssigned
+                              ? 'bg-green-100 text-green-800 hover:bg-green-200'
+                              : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                          }`}
+                        >
+                          {isAssigned ? 'Assigned' : 'Assign'}
+                        </button>
+                        <Link
+                          to={`/unit/${unit.id}/learn`}
+                          className="text-blue-600 hover:text-blue-800 text-sm underline text-center"
+                        >
+                          Preview
+                        </Link>
+                      </div>
                     </div>
                   </div>
                 );

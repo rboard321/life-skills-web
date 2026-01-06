@@ -1,53 +1,55 @@
 import React, { useState, useEffect } from 'react';
 import { collection, addDoc, getDocs, doc, updateDoc } from 'firebase/firestore';
 import { db } from '../firebase';
-import type { Unit } from '../data/sampleUnits';
+import type { DragDropActivity, DragDropPair, Unit } from '../data/sampleUnits';
 import { optimizeYouTubeUrl, getYouTubeWatchUrl } from '../utils/youtube';
 import { useAuth } from '../contexts/AuthContext';
 import { LibraryManager } from '../utils/libraryManager';
 import type { DocumentSnapshot } from 'firebase/firestore';
+import StudentManagement from './admin/StudentManagement';
 
 interface FirebaseUnit extends Unit {
   docId: string;
 }
 
+const createEmptyPair = (): DragDropPair => ({
+  id: `pair-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+  item: '',
+  target: ''
+});
+
 const SimpleAdminPage: React.FC = () => {
   const { currentUser } = useAuth();
-  const [activeTab, setActiveTab] = useState<'create' | 'my-library' | 'global-library'>('create');
+  const [activeTab, setActiveTab] = useState<'create' | 'my-library' | 'global-library' | 'students'>('create');
   const [existingUnits, setExistingUnits] = useState<FirebaseUnit[]>([]);
   const [myLibraryUnits, setMyLibraryUnits] = useState<FirebaseUnit[]>([]);
   const [globalLibraryUnits, setGlobalLibraryUnits] = useState<FirebaseUnit[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
-  const [activityTypeFilter, setActivityTypeFilter] = useState<'all' | 'h5p' | 'wordwall'>('all');
 
-  // Pagination state
   const [globalLibraryHasMore, setGlobalLibraryHasMore] = useState(false);
   const [globalLibraryLastDoc, setGlobalLibraryLastDoc] = useState<DocumentSnapshot | undefined>();
   const [globalLibraryLoading, setGlobalLibraryLoading] = useState(false);
   const PAGE_SIZE = 20;
 
-  // Unit creation state
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [videoUrl, setVideoUrl] = useState('');
-  const [activityUrl, setActivityUrl] = useState('');
-  const [activityType, setActivityType] = useState<'h5p' | 'wordwall'>('h5p');
   const [order, setOrder] = useState(1);
   const [isActive, setIsActive] = useState(true);
   const [isPrivate, setIsPrivate] = useState(false);
+  const [dragDropPrompt, setDragDropPrompt] = useState('');
+  const [dragDropPairs, setDragDropPairs] = useState<DragDropPair[]>([]);
 
-  // Loading states
   const [loading, setLoading] = useState(false);
   const [unitsLoading, setUnitsLoading] = useState(true);
 
-  // Edit state
   const [editingUnit, setEditingUnit] = useState<FirebaseUnit | null>(null);
   const [editTitle, setEditTitle] = useState('');
   const [editDescription, setEditDescription] = useState('');
   const [editVideoUrl, setEditVideoUrl] = useState('');
-  const [editActivityUrl, setEditActivityUrl] = useState('');
-  const [editActivityType, setEditActivityType] = useState<'h5p' | 'wordwall'>('h5p');
+  const [editDragDropPrompt, setEditDragDropPrompt] = useState('');
+  const [editDragDropPairs, setEditDragDropPairs] = useState<DragDropPair[]>([]);
   const [editOrder, setEditOrder] = useState(1);
   const [editIsActive, setEditIsActive] = useState(true);
 
@@ -56,7 +58,6 @@ const SimpleAdminPage: React.FC = () => {
     loadMyLibrary();
   }, [currentUser]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Debounce search term
   useEffect(() => {
     const timer = setTimeout(() => {
       setDebouncedSearchTerm(searchTerm);
@@ -67,9 +68,21 @@ const SimpleAdminPage: React.FC = () => {
 
   useEffect(() => {
     if (activeTab === 'global-library') {
-      loadGlobalLibrary(true); // Reset pagination when search/filter changes
+      loadGlobalLibrary(true);
     }
-  }, [activeTab, debouncedSearchTerm, activityTypeFilter]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [activeTab, debouncedSearchTerm]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (dragDropPairs.length < 2) {
+      setDragDropPairs([createEmptyPair(), createEmptyPair()]);
+    }
+  }, [dragDropPairs.length]);
+
+  useEffect(() => {
+    if (editDragDropPairs.length < 2) {
+      setEditDragDropPairs([createEmptyPair(), createEmptyPair()]);
+    }
+  }, [editDragDropPairs.length]);
 
   const loadMyLibrary = async () => {
     if (!currentUser?.uid) return;
@@ -90,13 +103,11 @@ const SimpleAdminPage: React.FC = () => {
     try {
       setGlobalLibraryLoading(true);
       const searchString = debouncedSearchTerm.trim() || undefined;
-      const activityType = activityTypeFilter === 'all' ? undefined : activityTypeFilter;
 
       const lastDoc = resetPagination ? undefined : globalLibraryLastDoc;
 
       const result = await LibraryManager.getGlobalLibraryPaginated(
         searchString,
-        activityType,
         PAGE_SIZE,
         lastDoc
       );
@@ -132,8 +143,8 @@ const SimpleAdminPage: React.FC = () => {
           title: data.title || '',
           description: data.description || '',
           videoUrl: data.videoUrl || '',
-          activityUrl: data.activityUrl || '',
-          activityType: data.activityType || 'h5p',
+          activityType: data.activityType || 'drag-drop',
+          activityData: data.activityData || undefined,
           order: data.order || 1,
           isActive: data.isActive,
           createdAt: data.createdAt?.toDate?.() || data.createdAt,
@@ -145,7 +156,6 @@ const SimpleAdminPage: React.FC = () => {
       units.sort((a, b) => a.order - b.order);
       setExistingUnits(units);
 
-      // Set next order number
       const maxOrder = units.length > 0 ? Math.max(...units.map(u => u.order)) : 0;
       setOrder(maxOrder + 1);
     } catch (error) {
@@ -161,9 +171,26 @@ const SimpleAdminPage: React.FC = () => {
     setLoading(true);
 
     try {
-      // Validate required fields
-      if (!title.trim() || !description.trim() || !videoUrl.trim() || !activityUrl.trim()) {
-        alert('Please fill in all fields');
+      if (!title.trim() || !description.trim() || !videoUrl.trim()) {
+        alert('Please fill in all required fields');
+        setLoading(false);
+        return;
+      }
+
+      const trimmedPairs = dragDropPairs.map(pair => ({
+        ...pair,
+        item: pair.item.trim(),
+        target: pair.target.trim()
+      }));
+
+      if (!dragDropPrompt.trim()) {
+        alert('Please add a drag-and-drop prompt');
+        setLoading(false);
+        return;
+      }
+      if (trimmedPairs.length < 2 || trimmedPairs.some(pair => !pair.item || !pair.target)) {
+        alert('Please add at least two complete drag-and-drop pairs');
+        setLoading(false);
         return;
       }
 
@@ -172,8 +199,11 @@ const SimpleAdminPage: React.FC = () => {
         title: title.trim(),
         description: description.trim(),
         videoUrl: videoUrl.trim(),
-        activityUrl: activityUrl.trim(),
-        activityType,
+        activityType: 'drag-drop',
+        activityData: {
+          prompt: dragDropPrompt.trim(),
+          pairs: trimmedPairs
+        } as DragDropActivity,
         order,
         isActive,
         isPrivate,
@@ -184,21 +214,18 @@ const SimpleAdminPage: React.FC = () => {
 
       const docRef = await addDoc(collection(db, 'units'), newUnit);
 
-      // Automatically add the created unit to the teacher's library
       if (currentUser?.uid) {
         await LibraryManager.addUnitToTeacherLibrary(currentUser.uid, docRef.id);
       }
 
-      // Reset form
       setTitle('');
       setDescription('');
       setVideoUrl('');
-      setActivityUrl('');
-      setActivityType('h5p');
+      setDragDropPrompt('');
+      setDragDropPairs([]);
       setIsPrivate(false);
       setIsActive(true);
 
-      // Reload units and library
       await loadUnits();
       await loadMyLibrary();
 
@@ -211,14 +238,13 @@ const SimpleAdminPage: React.FC = () => {
     }
   };
 
-
   const handleEditUnit = (unit: FirebaseUnit) => {
     setEditingUnit(unit);
     setEditTitle(unit.title);
     setEditDescription(unit.description);
     setEditVideoUrl(unit.videoUrl);
-    setEditActivityUrl(unit.activityUrl);
-    setEditActivityType(unit.activityType);
+    setEditDragDropPrompt(unit.activityData?.prompt || '');
+    setEditDragDropPairs(unit.activityData?.pairs?.length ? unit.activityData.pairs : [createEmptyPair(), createEmptyPair()]);
     setEditOrder(unit.order);
     setEditIsActive(unit.isActive ?? true);
   };
@@ -230,9 +256,26 @@ const SimpleAdminPage: React.FC = () => {
     setLoading(true);
 
     try {
-      // Validate required fields
-      if (!editTitle.trim() || !editDescription.trim() || !editVideoUrl.trim() || !editActivityUrl.trim()) {
-        alert('Please fill in all fields');
+      if (!editTitle.trim() || !editDescription.trim() || !editVideoUrl.trim()) {
+        alert('Please fill in all required fields');
+        setLoading(false);
+        return;
+      }
+
+      const trimmedPairs = editDragDropPairs.map(pair => ({
+        ...pair,
+        item: pair.item.trim(),
+        target: pair.target.trim()
+      }));
+
+      if (!editDragDropPrompt.trim()) {
+        alert('Please add a drag-and-drop prompt');
+        setLoading(false);
+        return;
+      }
+      if (trimmedPairs.length < 2 || trimmedPairs.some(pair => !pair.item || !pair.target)) {
+        alert('Please add at least two complete drag-and-drop pairs');
+        setLoading(false);
         return;
       }
 
@@ -241,8 +284,11 @@ const SimpleAdminPage: React.FC = () => {
         title: editTitle.trim(),
         description: editDescription.trim(),
         videoUrl: editVideoUrl.trim(),
-        activityUrl: editActivityUrl.trim(),
-        activityType: editActivityType,
+        activityType: 'drag-drop',
+        activityData: {
+          prompt: editDragDropPrompt.trim(),
+          pairs: trimmedPairs
+        } as DragDropActivity,
         order: editOrder,
         isActive: editIsActive,
         updatedAt: new Date()
@@ -250,17 +296,15 @@ const SimpleAdminPage: React.FC = () => {
 
       await updateDoc(doc(db, 'units', editingUnit.docId), updatedUnit);
 
-      // Reset edit state
       setEditingUnit(null);
       setEditTitle('');
       setEditDescription('');
       setEditVideoUrl('');
-      setEditActivityUrl('');
-      setEditActivityType('h5p');
+      setEditDragDropPrompt('');
+      setEditDragDropPairs([]);
       setEditOrder(1);
       setEditIsActive(true);
 
-      // Reload units
       await loadUnits();
 
       alert('Unit updated successfully! 🎉');
@@ -277,9 +321,10 @@ const SimpleAdminPage: React.FC = () => {
     setEditTitle('');
     setEditDescription('');
     setEditVideoUrl('');
-    setEditActivityUrl('');
-    setEditActivityType('h5p');
+    setEditDragDropPrompt('');
+    setEditDragDropPairs([]);
     setEditOrder(1);
+    setEditIsActive(true);
   };
 
   const handleTogglePrivacy = async (unit: FirebaseUnit) => {
@@ -290,6 +335,7 @@ const SimpleAdminPage: React.FC = () => {
 
     try {
       await LibraryManager.toggleUnitPrivacy(unit.docId, currentUser.uid);
+      await loadUnits();
       await loadMyLibrary();
     } catch (error) {
       console.error('Error toggling privacy:', error);
@@ -305,7 +351,7 @@ const SimpleAdminPage: React.FC = () => {
         await LibraryManager.removeUnitFromTeacherLibrary(currentUser.uid, unit.docId);
         await loadMyLibrary();
       } catch (error) {
-        console.error('Error removing from library:', error);
+        console.error('Error removing unit from library:', error);
         alert('Failed to remove unit from library.');
       }
     }
@@ -315,7 +361,6 @@ const SimpleAdminPage: React.FC = () => {
     if (!currentUser?.uid) return;
 
     try {
-      // Check if already in library
       const isInLibrary = await LibraryManager.isUnitInTeacherLibrary(currentUser.uid, unit.docId);
       if (isInLibrary) {
         alert('This unit is already in your library.');
@@ -326,60 +371,44 @@ const SimpleAdminPage: React.FC = () => {
       await loadMyLibrary();
       alert(`"${unit.title}" added to your library!`);
     } catch (error) {
-      console.error('Error copying to library:', error);
+      console.error('Error adding unit to library:', error);
       alert('Failed to add unit to library.');
     }
   };
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Header */}
       <div className="bg-white shadow-sm border-b">
         <div className="max-w-6xl mx-auto px-4 py-6">
           <h1 className="text-3xl font-bold text-gray-900">Teacher Admin Panel</h1>
           <p className="text-gray-600 mt-1">Create and manage life skills units</p>
         </div>
-      </div>
 
-      {/* Tab Navigation */}
-      <div className="bg-white border-b">
-        <div className="max-w-6xl mx-auto px-4">
-          <div className="flex space-x-8">
-            <button
-              onClick={() => setActiveTab('create')}
-              className={`py-4 px-2 border-b-2 font-medium text-sm ${
-                activeTab === 'create'
-                  ? 'border-blue-500 text-blue-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-              }`}
-            >
-              Create Units
-            </button>
-            <button
-              onClick={() => setActiveTab('my-library')}
-              className={`py-4 px-2 border-b-2 font-medium text-sm ${
-                activeTab === 'my-library'
-                  ? 'border-blue-500 text-blue-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-              }`}
-            >
-              My Library ({existingUnits.length})
-            </button>
-            <button
-              onClick={() => setActiveTab('global-library')}
-              className={`py-4 px-2 border-b-2 font-medium text-sm ${
-                activeTab === 'global-library'
-                  ? 'border-blue-500 text-blue-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-              }`}
-            >
-              Global Library
-            </button>
+        <div className="border-t">
+          <div className="max-w-6xl mx-auto px-4 flex gap-6">
+            {(['create', 'my-library', 'global-library', 'students'] as const).map(tab => (
+              <button
+                key={tab}
+                onClick={() => setActiveTab(tab)}
+                className={`py-4 px-2 border-b-2 font-medium text-sm ${
+                  activeTab === tab
+                    ? 'border-blue-500 text-blue-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                }`}
+              >
+                {tab === 'create' && 'Create Units'}
+                {tab === 'my-library' && `My Library (${existingUnits.length})`}
+                {tab === 'global-library' && 'Global Library'}
+                {tab === 'students' && 'Students'}
+              </button>
+            ))}
           </div>
         </div>
       </div>
 
       <div className="max-w-6xl mx-auto px-4 py-8">
+        {activeTab === 'students' && <StudentManagement />}
+
         {activeTab === 'create' && (
           <div className="bg-white rounded-lg shadow-sm p-6">
             <h2 className="text-2xl font-semibold text-gray-900 mb-6">Create New Unit</h2>
@@ -474,33 +503,82 @@ const SimpleAdminPage: React.FC = () => {
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div className="md:col-span-2">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Activity URL *
-                  </label>
-                  <input
-                    type="url"
-                    value={activityUrl}
-                    onChange={(e) => setActivityUrl(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    placeholder="https://h5p.org/... or https://wordwall.net/..."
-                    required
-                  />
+              <div className="space-y-4 rounded-lg border border-gray-200 bg-gray-50 p-4">
+                <div>
+                  <h3 className="text-sm font-semibold text-gray-800">Activity: Drag & Drop (built-in)</h3>
+                  <p className="text-xs text-gray-500">Create a matching activity for this unit.</p>
                 </div>
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Activity Type
+                    Activity Prompt *
                   </label>
-                  <select
-                    value={activityType}
-                    onChange={(e) => setActivityType(e.target.value as 'h5p' | 'wordwall')}
+                  <input
+                    type="text"
+                    value={dragDropPrompt}
+                    onChange={(e) => setDragDropPrompt(e.target.value)}
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  >
-                    <option value="h5p">H5P Interactive</option>
-                    <option value="wordwall">Wordwall Game</option>
-                  </select>
+                    placeholder="e.g., Drag each item to the correct category."
+                  />
+                </div>
+
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <label className="block text-sm font-medium text-gray-700">
+                      Matching Pairs *
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => setDragDropPairs(prev => [...prev, createEmptyPair()])}
+                      className="text-sm text-blue-600 hover:text-blue-700"
+                    >
+                      + Add Pair
+                    </button>
+                  </div>
+
+                  {dragDropPairs.map((pair, index) => (
+                    <div key={pair.id} className="grid grid-cols-1 md:grid-cols-5 gap-3 items-end">
+                      <div className="md:col-span-2">
+                        <label className="block text-xs text-gray-500 mb-1">
+                          Draggable Item {index + 1}
+                        </label>
+                        <input
+                          type="text"
+                          value={pair.item}
+                          onChange={(e) => setDragDropPairs(prev =>
+                            prev.map(p => (p.id === pair.id ? { ...p, item: e.target.value } : p))
+                          )}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                          placeholder="e.g., Wash hands"
+                        />
+                      </div>
+                      <div className="md:col-span-2">
+                        <label className="block text-xs text-gray-500 mb-1">
+                          Target Label {index + 1}
+                        </label>
+                        <input
+                          type="text"
+                          value={pair.target}
+                          onChange={(e) => setDragDropPairs(prev =>
+                            prev.map(p => (p.id === pair.id ? { ...p, target: e.target.value } : p))
+                          )}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                          placeholder="e.g., Bathroom"
+                        />
+                      </div>
+                      <div>
+                        {dragDropPairs.length > 2 && (
+                          <button
+                            type="button"
+                            onClick={() => setDragDropPairs(prev => prev.filter(p => p.id !== pair.id))}
+                            className="text-xs text-red-600 hover:text-red-700"
+                          >
+                            Remove
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  ))}
                 </div>
               </div>
 
@@ -523,19 +601,7 @@ const SimpleAdminPage: React.FC = () => {
                   disabled={loading}
                   className="w-full md:w-auto bg-blue-600 text-white px-6 py-3 rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
                 >
-                  {loading ? (
-                    <>
-                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                      Creating Unit...
-                    </>
-                  ) : (
-                    <>
-                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                      </svg>
-                      Create Unit
-                    </>
-                  )}
+                  {loading ? 'Creating Unit...' : 'Create Unit'}
                 </button>
               </div>
             </form>
@@ -608,7 +674,7 @@ const SimpleAdminPage: React.FC = () => {
                         <p className="text-gray-600 text-sm mb-3">{unit.description}</p>
                         <div className="flex items-center gap-4 text-xs text-gray-500">
                           <span>Video: YouTube</span>
-                          <span>Activity: {unit.activityType.toUpperCase()}</span>
+                          <span>Activity: DRAG-DROP</span>
                           {unit.originalCreator && (
                             <span>Copied from global library</span>
                           )}
@@ -656,7 +722,123 @@ const SimpleAdminPage: React.FC = () => {
           </div>
         )}
 
-        {/* Edit Unit Modal/Form */}
+        {activeTab === 'global-library' && (
+          <div className="bg-white rounded-lg shadow-sm p-6">
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="text-2xl font-semibold text-gray-900">Global Library</h2>
+              <div className="text-sm text-gray-600">
+                {globalLibraryUnits.length} public units available
+              </div>
+            </div>
+
+            <div className="mb-6 space-y-4">
+              <div className="flex gap-4">
+                <div className="flex-1 relative">
+                  <input
+                    type="text"
+                    placeholder="Search units..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="w-full px-4 py-2 pr-10 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  />
+                  {searchTerm !== debouncedSearchTerm && (
+                    <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {globalLibraryLoading && globalLibraryUnits.length === 0 ? (
+              <div className="text-center py-8">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-2"></div>
+                <p className="text-gray-600">Loading global library...</p>
+              </div>
+            ) : globalLibraryUnits.length === 0 ? (
+              <div className="text-center py-8">
+                <div className="text-4xl mb-4">🌍</div>
+                <h3 className="text-lg font-medium text-gray-900 mb-2">
+                  {debouncedSearchTerm ? 'No Matching Units' : 'No Public Units'}
+                </h3>
+                <p className="text-gray-600 mb-4">
+                  {debouncedSearchTerm
+                    ? 'Try adjusting your search or filters.'
+                    : 'Be the first to create and share a public unit!'}
+                </p>
+                {debouncedSearchTerm && (
+                  <button
+                    onClick={() => setSearchTerm('')}
+                    className="text-blue-600 hover:text-blue-800 underline"
+                  >
+                    Clear filters
+                  </button>
+                )}
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {globalLibraryUnits.map((unit) => (
+                  <div
+                    key={unit.docId}
+                    className="border border-gray-200 rounded-lg p-4 hover:bg-gray-50 transition-colors"
+                  >
+                    <div className="flex justify-between items-start">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-3 mb-2">
+                          <span className="text-sm font-medium text-gray-500">Unit {unit.order}</span>
+                          <h3 className="text-lg font-semibold text-gray-900">{unit.title}</h3>
+                          <div className="flex gap-2">
+                            {unit.createdBy === currentUser?.uid && (
+                              <span className="px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded-full">
+                                📝 Created by me
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                        <p className="text-gray-600 text-sm mb-3">{unit.description}</p>
+                        <div className="flex items-center gap-4 text-xs text-gray-500">
+                          <span>Video: YouTube</span>
+                          <span>Activity: DRAG-DROP</span>
+                          {unit.createdAt && (
+                            <span>Created: {new Date(unit.createdAt).toLocaleDateString()}</span>
+                          )}
+                        </div>
+                      </div>
+                      <div className="flex flex-col gap-2 ml-4">
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => window.open(getYouTubeWatchUrl(unit.videoUrl), '_blank')}
+                            className="text-blue-600 hover:text-blue-800 text-sm underline"
+                          >
+                            Preview
+                          </button>
+                          <button
+                            onClick={() => handleCopyToLibrary(unit)}
+                            className="text-green-600 hover:text-green-800 text-sm underline"
+                          >
+                            Add to My Library
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+
+                {globalLibraryHasMore && (
+                  <div className="text-center pt-4">
+                    <button
+                      onClick={() => loadGlobalLibrary(false)}
+                      className="bg-blue-600 text-white px-6 py-2 rounded-md hover:bg-blue-700"
+                    >
+                      {globalLibraryLoading ? 'Loading...' : 'Load More Units'}
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+
         {editingUnit && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
             <div className="bg-white rounded-lg shadow-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto">
@@ -729,48 +911,84 @@ const SimpleAdminPage: React.FC = () => {
                       placeholder="https://youtube.com/watch?v=..."
                       required
                     />
-                    <div className="mt-1 space-y-1">
-                      <p className="text-xs text-gray-500">
-                        Any YouTube URL format (watch, share, embed, shorts)
-                      </p>
-                      <p className="text-xs text-amber-600">
-                        ⚠️ Make sure the video is public and allows embedding
-                      </p>
-                      {editVideoUrl && (
-                        <p className="text-xs text-blue-600">
-                          Embed format: {optimizeYouTubeUrl(editVideoUrl)}
-                        </p>
-                      )}
-                    </div>
                   </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <div className="md:col-span-2">
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Activity URL *
-                      </label>
-                      <input
-                        type="url"
-                        value={editActivityUrl}
-                        onChange={(e) => setEditActivityUrl(e.target.value)}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                        placeholder="https://h5p.org/... or https://wordwall.net/..."
-                        required
-                      />
+                  <div className="space-y-4 rounded-lg border border-gray-200 bg-gray-50 p-4">
+                    <div>
+                      <h3 className="text-sm font-semibold text-gray-800">Activity: Drag & Drop (built-in)</h3>
+                      <p className="text-xs text-gray-500">Update the matching activity for this unit.</p>
                     </div>
 
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Activity Type
+                        Activity Prompt *
                       </label>
-                      <select
-                        value={editActivityType}
-                        onChange={(e) => setEditActivityType(e.target.value as 'h5p' | 'wordwall')}
+                      <input
+                        type="text"
+                        value={editDragDropPrompt}
+                        onChange={(e) => setEditDragDropPrompt(e.target.value)}
                         className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                      >
-                        <option value="h5p">H5P Interactive</option>
-                        <option value="wordwall">Wordwall Game</option>
-                      </select>
+                        placeholder="e.g., Drag each item to the correct category."
+                      />
+                    </div>
+
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between">
+                        <label className="block text-sm font-medium text-gray-700">
+                          Matching Pairs *
+                        </label>
+                        <button
+                          type="button"
+                          onClick={() => setEditDragDropPairs(prev => [...prev, createEmptyPair()])}
+                          className="text-sm text-blue-600 hover:text-blue-700"
+                        >
+                          + Add Pair
+                        </button>
+                      </div>
+
+                      {editDragDropPairs.map((pair, index) => (
+                        <div key={pair.id} className="grid grid-cols-1 md:grid-cols-5 gap-3 items-end">
+                          <div className="md:col-span-2">
+                            <label className="block text-xs text-gray-500 mb-1">
+                              Draggable Item {index + 1}
+                            </label>
+                            <input
+                              type="text"
+                              value={pair.item}
+                              onChange={(e) => setEditDragDropPairs(prev =>
+                                prev.map(p => (p.id === pair.id ? { ...p, item: e.target.value } : p))
+                              )}
+                              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                              placeholder="e.g., Wash hands"
+                            />
+                          </div>
+                          <div className="md:col-span-2">
+                            <label className="block text-xs text-gray-500 mb-1">
+                              Target Label {index + 1}
+                            </label>
+                            <input
+                              type="text"
+                              value={pair.target}
+                              onChange={(e) => setEditDragDropPairs(prev =>
+                                prev.map(p => (p.id === pair.id ? { ...p, target: e.target.value } : p))
+                              )}
+                              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                              placeholder="e.g., Bathroom"
+                            />
+                          </div>
+                          <div>
+                            {editDragDropPairs.length > 2 && (
+                              <button
+                                type="button"
+                                onClick={() => setEditDragDropPairs(prev => prev.filter(p => p.id !== pair.id))}
+                                className="text-xs text-red-600 hover:text-red-700"
+                              >
+                                Remove
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      ))}
                     </div>
                   </div>
 
@@ -791,27 +1009,14 @@ const SimpleAdminPage: React.FC = () => {
                     <button
                       type="submit"
                       disabled={loading}
-                      className="flex-1 bg-blue-600 text-white px-6 py-3 rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
+                      className="flex-1 bg-blue-600 text-white px-6 py-3 rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                     >
-                      {loading ? (
-                        <>
-                          <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                          Updating Unit...
-                        </>
-                      ) : (
-                        <>
-                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                          </svg>
-                          Update Unit
-                        </>
-                      )}
+                      {loading ? 'Updating Unit...' : 'Update Unit'}
                     </button>
                     <button
                       type="button"
                       onClick={handleCancelEdit}
-                      disabled={loading}
-                      className="px-6 py-3 border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                      className="flex-1 bg-gray-200 text-gray-700 px-6 py-3 rounded-md hover:bg-gray-300 transition-colors"
                     >
                       Cancel
                     </button>
@@ -819,151 +1024,6 @@ const SimpleAdminPage: React.FC = () => {
                 </form>
               </div>
             </div>
-          </div>
-        )}
-
-        {activeTab === 'global-library' && (
-          <div className="bg-white rounded-lg shadow-sm p-6">
-            <div className="flex justify-between items-center mb-6">
-              <h2 className="text-2xl font-semibold text-gray-900">Global Library</h2>
-              <div className="text-sm text-gray-600">
-                {globalLibraryUnits.length} public units available
-              </div>
-            </div>
-
-            {/* Search and Filter */}
-            <div className="mb-6 space-y-4">
-              <div className="flex gap-4">
-                <div className="flex-1 relative">
-                  <input
-                    type="text"
-                    placeholder="Search units..."
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    className="w-full px-4 py-2 pr-10 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  />
-                  {searchTerm !== debouncedSearchTerm && (
-                    <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
-                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
-                    </div>
-                  )}
-                </div>
-                <select
-                  value={activityTypeFilter}
-                  onChange={(e) => setActivityTypeFilter(e.target.value as 'all' | 'h5p' | 'wordwall')}
-                  className="px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                >
-                  <option value="all">All Types</option>
-                  <option value="h5p">H5P Activities</option>
-                  <option value="wordwall">Wordwall Activities</option>
-                </select>
-              </div>
-            </div>
-
-            {globalLibraryLoading && globalLibraryUnits.length === 0 ? (
-              <div className="text-center py-8">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-2"></div>
-                <p className="text-gray-600">Loading global library...</p>
-              </div>
-            ) : globalLibraryUnits.length === 0 ? (
-              <div className="text-center py-8">
-                <div className="text-4xl mb-4">🌍</div>
-                <h3 className="text-lg font-medium text-gray-900 mb-2">
-                  {debouncedSearchTerm || activityTypeFilter !== 'all' ? 'No Matching Units' : 'No Public Units'}
-                </h3>
-                <p className="text-gray-600 mb-4">
-                  {debouncedSearchTerm || activityTypeFilter !== 'all'
-                    ? 'Try adjusting your search or filters.'
-                    : 'Be the first to create and share a public unit!'}
-                </p>
-                {(debouncedSearchTerm || activityTypeFilter !== 'all') && (
-                  <button
-                    onClick={() => {
-                      setSearchTerm('');
-                      setActivityTypeFilter('all');
-                    }}
-                    className="text-blue-600 hover:text-blue-800 underline"
-                  >
-                    Clear filters
-                  </button>
-                )}
-              </div>
-            ) : (
-              <div className="space-y-4">
-                {globalLibraryUnits.map((unit) => (
-                  <div
-                    key={unit.docId}
-                    className="border border-gray-200 rounded-lg p-4 hover:bg-gray-50 transition-colors"
-                  >
-                    <div className="flex justify-between items-start">
-                      <div className="flex-1">
-                        <div className="flex items-center gap-3 mb-2">
-                          <span className="text-sm font-medium text-gray-500">Unit {unit.order}</span>
-                          <h3 className="text-lg font-semibold text-gray-900">{unit.title}</h3>
-                          <div className="flex gap-2">
-                            <span className="px-2 py-1 bg-green-100 text-green-800 text-xs rounded-full">
-                              🌍 Public
-                            </span>
-                            {unit.createdBy === currentUser?.uid && (
-                              <span className="px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded-full">
-                                📝 Created by me
-                              </span>
-                            )}
-                          </div>
-                        </div>
-                        <p className="text-gray-600 text-sm mb-3">{unit.description}</p>
-                        <div className="flex items-center gap-4 text-xs text-gray-500">
-                          <span>Video: YouTube</span>
-                          <span>Activity: {unit.activityType.toUpperCase()}</span>
-                          {unit.createdAt && (
-                            <span>Created: {new Date(unit.createdAt).toLocaleDateString()}</span>
-                          )}
-                        </div>
-                      </div>
-                      <div className="flex flex-col gap-2 ml-4">
-                        <div className="flex gap-2">
-                          <button
-                            onClick={() => window.open(getYouTubeWatchUrl(unit.videoUrl), '_blank')}
-                            className="text-blue-600 hover:text-blue-800 text-sm underline"
-                          >
-                            Preview
-                          </button>
-                          <button
-                            onClick={() => handleCopyToLibrary(unit)}
-                            className="bg-green-600 hover:bg-green-700 text-white px-3 py-1 rounded text-sm transition-colors"
-                          >
-                            Add to My Library
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-
-                {/* Load More Button */}
-                {globalLibraryHasMore && (
-                  <div className="text-center pt-6">
-                    <button
-                      onClick={() => loadGlobalLibrary(false)}
-                      disabled={globalLibraryLoading}
-                      className="bg-blue-600 hover:bg-blue-700 disabled:bg-blue-300 text-white px-6 py-2 rounded-md transition-colors flex items-center gap-2 mx-auto"
-                    >
-                      {globalLibraryLoading ? (
-                        <>
-                          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                          Loading...
-                        </>
-                      ) : (
-                        <>
-                          Load More Units
-                          <span className="text-sm opacity-75">({PAGE_SIZE} more)</span>
-                        </>
-                      )}
-                    </button>
-                  </div>
-                )}
-              </div>
-            )}
           </div>
         )}
       </div>

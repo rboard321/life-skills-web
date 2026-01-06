@@ -9,7 +9,6 @@ import {
 } from 'firebase/firestore';
 import { db } from '../firebase';
 import { findStudentByKidCode } from './kidCodeGenerator';
-import { v4 as uuidv4 } from 'uuid';
 
 interface LoginResult {
   success: boolean;
@@ -70,7 +69,7 @@ export class StudentAuth {
    */
   static async createSession(studentId: string, kidCode: string, teacherId: string): Promise<string> {
     try {
-      const sessionToken = uuidv4();
+      const sessionToken = crypto.randomUUID();
       const now = new Date();
       const expiresAt = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000); // 7 days
 

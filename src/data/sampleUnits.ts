@@ -1,9 +1,20 @@
-
 // Simplified Phase 1 Data Model
+export type ActivityType = 'drag-drop';
+
+export type DragDropPair = {
+  id: string;
+  item: string;
+  target: string;
+};
+
+export type DragDropActivity = {
+  prompt: string;
+  pairs: DragDropPair[];
+};
+
 export type Activity = {
   id: number;
-  type: 'h5p' | 'wordwall';
-  url: string;
+  type: ActivityType;
   title: string;
 };
 
@@ -13,8 +24,8 @@ export type Unit = {
   title: string;
   description: string;
   videoUrl: string;
-  activityUrl: string;
-  activityType: 'h5p' | 'wordwall';
+  activityType: ActivityType;
+  activityData?: DragDropActivity;
   order: number;
   isActive?: boolean;
   createdAt?: Date;
@@ -30,15 +41,9 @@ export type Unit = {
 // User progress tracking (legacy - use UserProgressData from firebase-optimized.ts for new implementation)
 export type UserProgress = {
   unitId: number;
-  completedVideo: boolean;
-  completedActivity: boolean;
-  completedAt?: Date;
-  videoProgress?: {
-    watchedSeconds: number;
-    totalSeconds: number;
-    percentWatched: number;
-  };
+  activityScorePercent?: number;
   activityAttempts?: number;
+  completedAt?: Date;
 };
 
 // User model for assignment system
@@ -79,8 +84,15 @@ export const sampleUnits: Unit[] = [
     title: 'Unit 1: Introduction to Life Skills',
     description: 'Learn the basics of essential life skills including communication and daily routines.',
     videoUrl: 'https://www.youtube.com/embed/dQw4w9WgXcQ',
-    activityUrl: 'https://h5p.org/h5p/embed/27611',
-    activityType: 'h5p',
+    activityType: 'drag-drop',
+    activityData: {
+      prompt: 'Match each daily task to the right place.',
+      pairs: [
+        { id: 'a', item: 'Brush teeth', target: 'Bathroom' },
+        { id: 'b', item: 'Wash hands', target: 'Sink' },
+        { id: 'c', item: 'Make bed', target: 'Bedroom' }
+      ]
+    },
     order: 1,
     isActive: true,
     createdAt: new Date('2024-01-01'),
@@ -91,8 +103,15 @@ export const sampleUnits: Unit[] = [
     title: 'Unit 2: Basic Communication',
     description: 'Master fundamental communication skills for everyday interactions.',
     videoUrl: 'https://www.youtube.com/embed/dQw4w9WgXcQ',
-    activityUrl: 'https://wordwall.net/embed/b823729c3f42439ebcb5308bbf9e004f?themeId=55&templateId=79&fontStackId=12',
-    activityType: 'wordwall',
+    activityType: 'drag-drop',
+    activityData: {
+      prompt: 'Match the phrase to when you would say it.',
+      pairs: [
+        { id: 'a', item: 'Nice to meet you', target: 'First introduction' },
+        { id: 'b', item: 'Excuse me', target: 'Getting attention' },
+        { id: 'c', item: 'Thank you', target: 'Showing appreciation' }
+      ]
+    },
     order: 2,
     isActive: true,
     createdAt: new Date('2024-01-01'),
@@ -103,8 +122,15 @@ export const sampleUnits: Unit[] = [
     title: 'Unit 3: Money Management',
     description: 'Learn how to manage money, make change, and understand basic budgeting.',
     videoUrl: 'https://www.youtube.com/embed/dQw4w9WgXcQ',
-    activityUrl: 'https://h5p.org/h5p/embed/27611',
-    activityType: 'h5p',
+    activityType: 'drag-drop',
+    activityData: {
+      prompt: 'Match each item to the correct cost.',
+      pairs: [
+        { id: 'a', item: 'Bus ticket', target: '$2' },
+        { id: 'b', item: 'Notebook', target: '$3' },
+        { id: 'c', item: 'Snack', target: '$1' }
+      ]
+    },
     order: 3,
     isActive: true,
     createdAt: new Date('2024-01-01'),
@@ -115,8 +141,15 @@ export const sampleUnits: Unit[] = [
     title: 'Unit 4: Personal Hygiene',
     description: 'Important personal care and hygiene habits for daily life.',
     videoUrl: 'https://www.youtube.com/embed/dQw4w9WgXcQ',
-    activityUrl: 'https://wordwall.net/embed/b823729c3f42439ebcb5308bbf9e004f?themeId=55&templateId=79&fontStackId=12',
-    activityType: 'wordwall',
+    activityType: 'drag-drop',
+    activityData: {
+      prompt: 'Match each habit to when it should happen.',
+      pairs: [
+        { id: 'a', item: 'Shower', target: 'Daily' },
+        { id: 'b', item: 'Trim nails', target: 'Weekly' },
+        { id: 'c', item: 'Brush teeth', target: 'Morning and night' }
+      ]
+    },
     order: 4,
     isActive: true,
     createdAt: new Date('2024-01-01'),
@@ -127,13 +160,18 @@ export const sampleUnits: Unit[] = [
     title: 'Unit 5: Safety at Home',
     description: 'Essential safety practices and emergency procedures for the home.',
     videoUrl: 'https://www.youtube.com/embed/dQw4w9WgXcQ',
-    activityUrl: 'https://h5p.org/h5p/embed/27611',
-    activityType: 'h5p',
+    activityType: 'drag-drop',
+    activityData: {
+      prompt: 'Match each item to where it should be stored.',
+      pairs: [
+        { id: 'a', item: 'Cleaning spray', target: 'Locked cabinet' },
+        { id: 'b', item: 'First aid kit', target: 'Hall closet' },
+        { id: 'c', item: 'Matches', target: 'Out of reach' }
+      ]
+    },
     order: 5,
     isActive: true,
     createdAt: new Date('2024-01-01'),
     updatedAt: new Date('2024-01-01'),
   }
 ];
-
-

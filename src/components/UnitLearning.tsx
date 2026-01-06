@@ -1,18 +1,65 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useUnits } from '../hooks/useUnits';
-import { getEmbeddableActivityUrl, getActivityInstructions } from '../utils/activityUrls';
 import { optimizeYouTubeUrl } from '../utils/youtube';
+import DragDropActivity from './activities/DragDropActivity';
+import { ProgressTracker } from '../utils/progressTracker';
+import { useStudentAuth } from '../contexts/StudentAuthContext';
 
 const UnitLearning: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { units, loading } = useUnits(true);
+  const { studentId, teacherId } = useStudentAuth();
 
   const [currentStep, setCurrentStep] = useState<'video' | 'activity'>('video');
+  const [activityStartedAt, setActivityStartedAt] = useState<Date | null>(null);
+  const [activityCompleted, setActivityCompleted] = useState(false);
 
-  const unitId = id ? parseInt(id, 10) : null;
-  const unit = units.find(u => u.id === unitId);
+  const unitId = id ?? null;
+  const unit = units.find(u => String(u.id) === unitId);
+  const activityData = unit?.activityData;
+  const activityAvailable = Boolean(activityData);
+  const canTrackProgress = Boolean(studentId && teacherId && unit);
+
+  useEffect(() => {
+    setActivityStartedAt(null);
+    setActivityCompleted(false);
+  }, [unitId]);
+
+  useEffect(() => {
+    if (!canTrackProgress || !unit) return;
+
+    ProgressTracker.initializeProgress(studentId as string, unit.id, teacherId as string)
+      .catch(error => console.error('Error initializing progress:', error));
+  }, [canTrackProgress, studentId, teacherId, unit?.id]);
+
+  useEffect(() => {
+    if (currentStep !== 'activity' || activityStartedAt || !canTrackProgress) {
+      return;
+    }
+
+    setActivityStartedAt(new Date());
+  }, [currentStep, activityStartedAt, canTrackProgress]);
+
+  const handleActivityComplete = async (result?: {
+    percent: number;
+    correctCount: number;
+    totalCount: number;
+    attempts: number;
+  }) => {
+    if (!canTrackProgress || !unit) return;
+
+    try {
+      const startedAt = activityStartedAt ?? new Date();
+      const timeSeconds = Math.max(0, Math.round((Date.now() - startedAt.getTime()) / 1000));
+      await ProgressTracker.updateActivityProgress(studentId as string, unit.id, timeSeconds, startedAt);
+      await ProgressTracker.completeActivity(studentId as string, unit.id, result);
+      setActivityCompleted(true);
+    } catch (error) {
+      console.error('Error saving activity progress:', error);
+    }
+  };
 
   // Simple navigation helper
   const goBackToDashboard = () => {
@@ -173,32 +220,30 @@ const UnitLearning: React.FC = () => {
               </div>
             </div>
 
-            <div className="aspect-video">
-              <iframe
-                src={getEmbeddableActivityUrl(unit.activityUrl, unit.activityType)}
-                className="w-full h-full"
-                style={{maxWidth: '100%'}}
-                width="500"
-                height="380"
-                frameBorder="0"
-                allowFullScreen
-                title={`${unit.title} Activity`}
-              ></iframe>
+            <div className="p-6">
+              {activityAvailable && activityData ? (
+                <DragDropActivity
+                  activity={activityData}
+                  onComplete={handleActivityComplete}
+                />
+              ) : (
+                <div className="text-center text-gray-600 py-8">
+                  This unit doesn't have an activity yet. Please check back later.
+                </div>
+              )}
             </div>
 
-            <div className="p-6">
-              <div className="space-y-4">
-                <p className="text-sm text-gray-600 bg-blue-50 p-3 rounded-md">
-                  🎮 {getActivityInstructions(unit.activityType)}
-                </p>
-                <div className="text-center">
-                  <button
-                    onClick={goBackToDashboard}
-                    className="bg-blue-600 text-white px-6 py-3 rounded-md hover:bg-blue-700 transition-colors"
-                  >
-                    Back to Dashboard
-                  </button>
+            <div className="p-6 border-t bg-gray-50">
+              <div className="flex flex-wrap items-center justify-between gap-4">
+                <div className="text-sm text-gray-600">
+                  {activityCompleted ? '✅ Activity completed! Great work.' : 'Finish the activity to record your score.'}
                 </div>
+                <button
+                  onClick={goBackToDashboard}
+                  className="bg-blue-600 text-white px-6 py-3 rounded-md hover:bg-blue-700 transition-colors"
+                >
+                  Back to Dashboard
+                </button>
               </div>
             </div>
           </div>

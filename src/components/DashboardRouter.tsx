@@ -1,16 +1,14 @@
 import React from 'react';
 import { useAuth } from '../contexts/AuthContext';
+import { useStudentAuth } from '../contexts/StudentAuthContext';
 import TeacherDashboard from './TeacherDashboard';
 import StudentDashboard from './StudentDashboard';
 
 const DashboardRouter: React.FC = () => {
   const { isTeacher, loading, currentUser } = useAuth();
+  const { isAuthenticated: isStudentAuth, loading: studentLoading } = useStudentAuth();
 
-  // Check if this is a student session (no auth but has teacher code)
-  const isStudentSession = sessionStorage.getItem('isStudent') === 'true';
-  const studentTeacherCode = sessionStorage.getItem('studentTeacherCode');
-
-  if (loading && !isStudentSession) {
+  if ((loading || studentLoading) && !isStudentAuth) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
@@ -21,17 +19,14 @@ const DashboardRouter: React.FC = () => {
     );
   }
 
-  // If student session, show student dashboard
-  if (isStudentSession && studentTeacherCode) {
-    return <StudentDashboard />;
-  }
-
-  // If authenticated user, show appropriate dashboard
   if (currentUser) {
     return isTeacher ? <TeacherDashboard /> : <StudentDashboard />;
   }
 
-  // If no auth and no student session, redirect to login
+  if (isStudentAuth) {
+    return <StudentDashboard />;
+  }
+
   window.location.href = '/login';
   return null;
 };

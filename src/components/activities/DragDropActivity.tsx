@@ -1,5 +1,5 @@
 import React, { useMemo, useRef, useState } from 'react';
-import type { DragDropActivity as DragDropActivityType } from '../../data/sampleUnits';
+import type { DragDropActivity as DragDropActivityType, DragDropPair } from '../../data/sampleUnits';
 
 interface DragDropActivityProps {
   activity: DragDropActivityType;
@@ -13,7 +13,7 @@ interface DragDropActivityProps {
 
 const DragDropActivity: React.FC<DragDropActivityProps> = ({ activity, onComplete }) => {
   const [assignments, setAssignments] = useState<Record<string, string | null>>(() => {
-    return activity.pairs.reduce((acc, pair) => {
+    return activity.pairs.reduce((acc: Record<string, string | null>, pair: DragDropPair) => {
       acc[pair.id] = null;
       return acc;
     }, {} as Record<string, string | null>);
@@ -58,7 +58,7 @@ const DragDropActivity: React.FC<DragDropActivityProps> = ({ activity, onComplet
     let allCorrect = true;
     let correctCount = 0;
 
-    activity.pairs.forEach(pair => {
+    activity.pairs.forEach((pair: DragDropPair) => {
       const isCorrect = assignments[pair.id] === pair.id;
       nextResults[pair.id] = isCorrect;
       if (!isCorrect) {
@@ -86,7 +86,7 @@ const DragDropActivity: React.FC<DragDropActivityProps> = ({ activity, onComplet
   };
 
   const handleReset = () => {
-    const cleared = activity.pairs.reduce((acc, pair) => {
+    const cleared = activity.pairs.reduce((acc: Record<string, string | null>, pair: DragDropPair) => {
       acc[pair.id] = null;
       return acc;
     }, {} as Record<string, string | null>);
@@ -143,9 +143,9 @@ const DragDropActivity: React.FC<DragDropActivityProps> = ({ activity, onComplet
 
         <div className="space-y-3">
           <h3 className="text-sm font-semibold text-gray-700">Targets</h3>
-          {activity.pairs.map(pair => {
+          {activity.pairs.map((pair: DragDropPair) => {
             const assignedItemId = assignments[pair.id];
-            const assignedItem = activity.pairs.find(item => item.id === assignedItemId);
+            const assignedItem = activity.pairs.find((item: DragDropPair) => item.id === assignedItemId);
             const hasResult = checked && results[pair.id] !== undefined;
             const isCorrect = results[pair.id];
 

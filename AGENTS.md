@@ -1,38 +1,34 @@
 # Repository Guidelines
 
 ## Project Structure & Module Organization
-- `src/` contains the React + TypeScript app. Key areas: `components/`, `contexts/`, `hooks/`, `utils/`, and data in `data/`.
-- `src/assets/` and `public/` store static assets; `src/index.css` holds global styles.
-- Tests live alongside code in `__tests__/` folders (example: `src/hooks/__tests__/`).
-- Firebase setup is centralized in `src/firebase.ts`.
-- Build output goes to `dist/` via Vite.
+- `src/components/` holds UI components, with feature folders like `src/components/activities/` and `src/components/admin/`.
+- `src/contexts/` contains auth providers (`AuthContext`, `StudentAuthContext`).
+- `src/utils/` houses Firebase helpers, progress tracking, and assignment managers.
+- `src/hooks/` includes shared hooks (ex: `useUnits`).
+- `src/data/` holds sample seed data and types.
+- Tests live under `src/**/__tests__/` with shared setup in `src/test/setup.ts`.
 
 ## Build, Test, and Development Commands
-- `npm ci`: install dependencies from `package-lock.json`.
-- `npm run dev`: start the Vite dev server with HMR.
-- `npm run build`: type-check (`tsc -b`) and produce a production build in `dist/`.
-- `npm run preview`: serve the production build locally.
-- `npm run lint`: run ESLint across the repo.
-- `npm run test`: run Vitest in watch mode.
-- `npm run test:ui`: run Vitest UI.
-- `npm run test:coverage`: run Vitest with coverage.
+- `npm run dev` starts the Vite dev server for local development.
+- `npm run build` runs TypeScript build (`tsc -b`) and creates the production bundle.
+- `npm run preview` serves the production build locally.
+- `npm run lint` runs ESLint across the codebase.
+- `npm test`, `npm run test:ui`, `npm run test:coverage` run Vitest tests.
 
 ## Coding Style & Naming Conventions
-- TypeScript + React with Vite; use ESM imports.
-- 2-space indentation, semicolons, and single quotes are the prevailing style (see `src/main.tsx`).
-- Component names are `PascalCase`, hooks are `useCamelCase`, and filenames match export names where possible.
-- Linting is enforced with ESLint (`eslint.config.js`).
+- Use TypeScript + React with functional components.
+- Indentation is 2 spaces and semicolons are used throughout existing files.
+- Component files are `PascalCase.tsx` and hooks/utilities are `camelCase.ts`.
+- Prefer updating existing Tailwind utility classes over introducing new CSS.
 
 ## Testing Guidelines
-- Test runner: Vitest; DOM tests use Testing Library (`@testing-library/*`).
-- Place tests in `__tests__/` next to related modules, using `*.test.ts` or `*.test.tsx`.
-- Run targeted tests with `npx vitest path/to/file.test.tsx`.
+- Tests use Vitest with React Testing Library.
+- Place tests in `src/**/__tests__/` and name them `*.test.ts` or `*.test.tsx`.
+- Run `npm test` before large changes; add coverage runs when adding new features.
 
 ## Commit & Pull Request Guidelines
-- No formal convention detected; recent commits use short, descriptive phrases (e.g., "added admin panel...").
-- Keep commits focused and descriptive; prefer imperative present tense (e.g., "add admin panel").
-- PRs should include: a brief summary, testing performed, and screenshots for UI changes.
+- Recent commits use short, descriptive, present-tense messages (ex: "fixing student assignments").
+- PRs should include a brief summary, testing notes, and screenshots for UI changes.
 
-## Configuration & Environment
-- Copy `.env.example` to `.env` and fill Firebase values before running locally.
-- See `README.md` for environment variable details and troubleshooting notes.
+## Configuration Notes
+- Firebase is configured in `src/firebase.ts`. If you change auth or Firestore behavior, verify the rules and local login flows.
